@@ -75,8 +75,8 @@ export function Dashboard() {
         totalTrades: 0,
         winningTrades: 0,
         losingTrades: 0,
-        bestDay: null,
-        worstDay: null,
+        bestDay: null as { date: string; pnl: number } | null,
+        worstDay: null as { date: string; pnl: number } | null,
         currentStreak: { type: 'win' as const, count: 0 },
         ruleAdherence: 0,
       };
@@ -381,7 +381,7 @@ export function Dashboard() {
                           fontSize: 13,
                           color: 'var(--fg)',
                         }}
-                        formatter={(val: number) => [formatCurrency(val), 'P&L Impact']}
+                        formatter={(val: any) => [formatCurrency(Number(val) || 0), 'P&L Impact']}
                       />
                       <Bar dataKey="totalPnl" radius={[0, 6, 6, 0]}>
                         {mistakeAnalysis.map((entry, index) => (

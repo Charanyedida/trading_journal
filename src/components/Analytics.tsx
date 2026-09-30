@@ -166,7 +166,7 @@ export function Analytics() {
                     <YAxis tick={{ fontSize: 12 }} tickFormatter={(val) => val > 1000 || val < -1000 ? `${(val/1000).toFixed(0)}k` : val} />
                     <Tooltip 
                       contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--fg)' }}
-                      formatter={(val: number) => [formatCurrency(val), 'Net P&L']}
+                      formatter={(val: any) => [formatCurrency(Number(val) || 0), 'Net P&L']}
                       labelStyle={{ color: 'var(--fg-muted)' }}
                     />
                     <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
@@ -195,7 +195,7 @@ export function Analytics() {
                     <YAxis tick={{ fontSize: 12 }} tickFormatter={(val) => val > 1000 || val < -1000 ? `${(val/1000).toFixed(0)}k` : val} />
                     <Tooltip 
                       contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--fg)' }}
-                      formatter={(val: number) => [formatCurrency(val), 'Net P&L']}
+                      formatter={(val: any) => [formatCurrency(Number(val) || 0), 'Net P&L']}
                       labelStyle={{ color: 'var(--fg-muted)' }}
                     />
                     <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>

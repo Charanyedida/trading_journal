@@ -11,6 +11,7 @@ import {
   UserPreferences,
   MarketType,
   MarketConfig,
+  EmotionTag,
   FilterState,
   DEFAULT_MISTAKE_TAGS,
   DEFAULT_CHECKLIST_ITEMS,
@@ -119,7 +120,7 @@ export const useTradingStore = create<TradingJournalState>()(
       const mappedTrades = (trades || []).map(t => ({
         id: t.id,
         userId: t.user_id,
-        marketType: 'equity', // Will need mapping properly, skipping for brevity
+        marketType: 'equity' as MarketType, // Will need mapping properly, skipping for brevity
         symbol: t.symbol,
         direction: t.direction as 'long' | 'short',
         entryDate: t.created_at, // Mapping from DB
