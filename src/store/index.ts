@@ -202,10 +202,14 @@ export const useTradingStore = create<TradingJournalState>()(
       set((s) => ({ preferences: { ...s.preferences, ...prefs } }));
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await supabase.from('profiles').update({
-          preferred_theme: prefs.theme,
-          currency: prefs.currency
-        }).eq('id', user.id);
+        const updates: any = {};
+        if (prefs.theme !== undefined) updates.preferred_theme = prefs.theme;
+        if (prefs.currency !== undefined) updates.currency = prefs.currency;
+        if (prefs.name !== undefined) updates.name = prefs.name;
+        
+        if (Object.keys(updates).length > 0) {
+          await supabase.from('profiles').update(updates).eq('id', user.id);
+        }
       }
     },
 

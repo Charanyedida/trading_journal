@@ -18,6 +18,19 @@ import {
 import { useTradingStore } from '@/store';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 
+const INDIAN_HOLIDAYS = [
+  '01-26', // Republic Day
+  '05-01', // Maharashtra Day
+  '08-15', // Independence Day
+  '10-02', // Gandhi Jayanti
+  '12-25', // Christmas
+];
+
+const isHoliday = (date: Date) => {
+  const md = format(date, 'MM-dd');
+  return INDIAN_HOLIDAYS.includes(md);
+};
+
 export function CalendarView() {
   const { trades, setActiveNav } = useTradingStore();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -119,6 +132,9 @@ export function CalendarView() {
               const data = pnlByDay[dateStr];
               const isCurrentMonth = isSameMonth(day, currentDate);
               const today = isToday(day);
+              const weekend = day.getDay() === 0 || day.getDay() === 6;
+              const holiday = isHoliday(day);
+              const nonTradingDay = weekend || holiday;
 
               return (
                 <div
@@ -127,7 +143,7 @@ export function CalendarView() {
                     aspectRatio: '1',
                     borderRadius: 'var(--radius-md)',
                     border: `1px solid ${today ? 'var(--accent)' : 'var(--border)'}`,
-                    background: data ? getColorForPnl(data.pnl) : 'var(--surface)',
+                    background: data ? getColorForPnl(data.pnl) : (nonTradingDay ? 'var(--bg-secondary)' : 'var(--surface)'),
                     opacity: isCurrentMonth ? 1 : 0.4,
                     padding: 8,
                     display: 'flex',
@@ -144,8 +160,9 @@ export function CalendarView() {
                     }
                   }}
                 >
-                  <div style={{ fontSize: 12, fontWeight: 600, color: data ? getTextColorForPnl(data.pnl) : 'var(--fg-muted)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: data ? getTextColorForPnl(data.pnl) : (nonTradingDay ? 'var(--loss)' : 'var(--fg-muted)') }}>
                     {format(day, 'd')}
+                    {holiday && !data && <span style={{ fontSize: 10, display: 'block', fontWeight: 400, opacity: 0.7 }}>Holiday</span>}
                   </div>
                   {data && (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>

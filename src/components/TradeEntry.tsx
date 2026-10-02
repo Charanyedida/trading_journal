@@ -30,7 +30,15 @@ export function TradeEntry() {
     setActiveNav,
   } = useTradingStore();
 
-  const enabledMarkets = marketConfigs.filter((m) => m.enabled);
+  const enabledMarkets = marketConfigs.filter((m) => m.enabled).length > 0
+    ? marketConfigs.filter((m) => m.enabled)
+    : ([
+        { type: 'equity' },
+        { type: 'fno' },
+        { type: 'forex' },
+        { type: 'crypto' },
+        { type: 'gold' },
+      ] as { type: MarketType }[]);
 
   const [form, setForm] = useState({
     marketType: enabledMarkets[0]?.type || ('equity' as MarketType),
