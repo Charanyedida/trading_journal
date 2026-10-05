@@ -110,6 +110,18 @@ export interface DailyJournal {
   createdAt: string;
 }
 
+// ---- Capital Tracking ----
+
+export interface CapitalHistory {
+  id: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  capitalBefore: number;
+  netPnl: number;
+  capitalAfter: number;
+  createdAt: string;
+}
+
 // ---- User Preferences ----
 
 export interface UserPreferences {
@@ -119,6 +131,9 @@ export interface UserPreferences {
   currency: string;
   selectedMarkets: MarketType[];
   onboardingComplete: boolean;
+  startingCapital?: number;
+  riskPerTradePct?: number;
+  maxDailyRiskPct?: number;
 }
 
 // ---- Dashboard Stats ----

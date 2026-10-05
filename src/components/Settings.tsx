@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTradingStore } from '@/store';
 import { createClient } from '@/utils/supabase/client';
-import { Settings as SettingsIcon, User, Tag, Download, Sun, Moon, Check, X, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Settings as SettingsIcon, User, Tag, Download, Sun, Moon, Check, X, AlertTriangle, AlertCircle, Wallet } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { MARKET_LABELS, MarketType, MistakeTag } from '@/types';
 
@@ -14,6 +14,24 @@ export function Settings() {
   
   const [name, setName] = useState(preferences.name);
   const [savedUser, setSavedUser] = useState(false);
+
+  const [startingCapital, setStartingCapital] = useState(preferences.startingCapital?.toString() || '');
+  const [riskPerTradePct, setRiskPerTradePct] = useState(preferences.riskPerTradePct?.toString() || '1.0');
+  const [maxDailyRiskPct, setMaxDailyRiskPct] = useState(preferences.maxDailyRiskPct?.toString() || '3.0');
+  const [savedCapital, setSavedCapital] = useState(false);
+
+  const handleSaveCapital = () => {
+    setPreferences({ startingCapital: startingCapital ? parseFloat(startingCapital) : undefined });
+    setSavedCapital(true);
+    setTimeout(() => setSavedCapital(false), 2000);
+  };
+
+  const handleSaveRisk = () => {
+    setPreferences({
+      riskPerTradePct: riskPerTradePct ? parseFloat(riskPerTradePct) : 1.0,
+      maxDailyRiskPct: maxDailyRiskPct ? parseFloat(maxDailyRiskPct) : 3.0,
+    });
+  };
 
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#ef4444');
@@ -138,6 +156,54 @@ export function Settings() {
                 </label>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* Capital & Risk Settings */}
+        <div className="stat-card">
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Wallet size={18} color="var(--accent)" />
+            Capital & Risk Settings
+          </h2>
+
+          <div style={{ marginBottom: 20 }}>
+            <label className="input-label">Starting Capital</label>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <input
+                className="input"
+                type="number"
+                value={startingCapital}
+                onChange={(e) => setStartingCapital(e.target.value)}
+                placeholder="e.g. 100000"
+              />
+              <button className="btn btn-primary" onClick={handleSaveCapital}>
+                {savedCapital ? <Check size={16} /> : 'Save'}
+              </button>
+            </div>
+          </div>
+          
+          <div style={{ marginBottom: 20 }}>
+            <label className="input-label">Risk Per Trade (%)</label>
+            <input
+              className="input"
+              type="number"
+              step="0.1"
+              value={riskPerTradePct}
+              onChange={(e) => setRiskPerTradePct(e.target.value)}
+              onBlur={handleSaveRisk}
+            />
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label className="input-label">Max Daily Risk (%)</label>
+            <input
+              className="input"
+              type="number"
+              step="0.1"
+              value={maxDailyRiskPct}
+              onChange={(e) => setMaxDailyRiskPct(e.target.value)}
+              onBlur={handleSaveRisk}
+            />
           </div>
         </div>
 

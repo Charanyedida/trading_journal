@@ -18,6 +18,7 @@ import {
   ArrowDownRight,
   Check,
   AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 
 export function TradeEntry() {
@@ -28,6 +29,8 @@ export function TradeEntry() {
     strategies,
     addTrade,
     setActiveNav,
+    preferences,
+    capitalHistory,
   } = useTradingStore();
 
   const enabledMarkets = marketConfigs.filter((m) => m.enabled).length > 0
@@ -84,6 +87,25 @@ export function TradeEntry() {
     const fees = parseFloat(form.fees) || 0;
     return { pnl, netPnl: pnl - fees };
   }, [form.entryPrice, form.exitPrice, form.quantity, form.direction, form.fees]);
+
+  // Risk Suggestion Engine
+  const riskSuggestion = useMemo(() => {
+    if (preferences.startingCapital === undefined) return null;
+    let currentCapital = preferences.startingCapital;
+    if (capitalHistory && capitalHistory.length > 0) {
+      currentCapital = capitalHistory[capitalHistory.length - 1].capitalAfter;
+    }
+    const riskPerTrade = currentCapital * (preferences.riskPerTradePct || 1.0) / 100;
+    
+    const entry = parseFloat(form.entryPrice);
+    const sl = parseFloat(form.plannedSL);
+    if (!isNaN(entry) && !isNaN(sl) && entry !== sl) {
+      const riskPerUnit = Math.abs(entry - sl);
+      const suggestedQty = Math.floor(riskPerTrade / riskPerUnit);
+      return { riskPerTrade, suggestedQty, riskPerUnit };
+    }
+    return { riskPerTrade, suggestedQty: null, riskPerUnit: null };
+  }, [preferences, capitalHistory, form.entryPrice, form.plannedSL]);
 
   const handleSubmit = () => {
     const responses: ChecklistResponse[] = [];
@@ -385,6 +407,31 @@ export function TradeEntry() {
 
         {/* Right Sidebar: Live P&L + Checklist */}
         <div style={{ position: 'sticky', top: 24 }}>
+          {/* Risk Suggestion */}
+          {riskSuggestion && (
+            <div className="stat-card" style={{ marginBottom: 16, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ShieldAlert size={14} />
+                RISK SUGGESTION
+              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                <span style={{ color: 'var(--fg-muted)' }}>Safe risk per trade:</span>
+                <span style={{ fontWeight: 600, color: 'var(--fg)' }} className="tabular-nums">₹{riskSuggestion.riskPerTrade.toFixed(2)}</span>
+              </div>
+              {riskSuggestion.suggestedQty !== null && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                  <span style={{ color: 'var(--fg-muted)' }}>Suggested Position Size:</span>
+                  <span style={{ fontWeight: 700, color: 'var(--accent)' }} className="tabular-nums">{riskSuggestion.suggestedQty}</span>
+                </div>
+              )}
+              {riskSuggestion.suggestedQty === null && (
+                <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                  Enter Entry Price and Planned Stop-Loss to calculate a suggested position size.
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Live P&L Preview */}
           <div
             className="stat-card"

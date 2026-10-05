@@ -12,6 +12,8 @@ import {
   Flame,
   PieChart,
   Zap,
+  Wallet,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -49,7 +51,7 @@ function AnimatedValue({ value, prefix = '', suffix = '' }: { value: string | nu
 }
 
 export function Dashboard() {
-  const { trades, mistakeTags, checklists, filters, setFilters, preferences } = useTradingStore();
+  const { trades, mistakeTags, checklists, filters, setFilters, preferences, capitalHistory } = useTradingStore();
 
   const filteredTrades = useMemo(() => {
     let t = [...trades];
@@ -165,6 +167,46 @@ export function Dashboard() {
     });
   }, [filteredTrades]);
 
+  // Capital tracking
+  const currentCapital = useMemo(() => {
+    if (preferences.startingCapital === undefined) return null;
+    if (capitalHistory.length === 0) return preferences.startingCapital;
+    return capitalHistory[capitalHistory.length - 1].capitalAfter;
+  }, [preferences.startingCapital, capitalHistory]);
+
+  const capitalStats = useMemo(() => {
+    if (preferences.startingCapital === undefined || currentCapital === null) return null;
+    
+    // Find today's date from local time
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const todayTrades = filteredTrades.filter(t => t.exitDate.startsWith(todayStr));
+    const todayPnl = todayTrades.reduce((s, t) => s + t.netPnl, 0);
+    const todayLosses = Math.abs(todayTrades.filter(t => t.netPnl < 0).reduce((s, t) => s + t.netPnl, 0));
+    
+    // Find yesterday's capital to compute % change
+    let yesterdayCapital = preferences.startingCapital;
+    if (capitalHistory.length > 0) {
+      const todayEntry = capitalHistory.find(c => c.date === todayStr);
+      if (todayEntry) {
+        yesterdayCapital = todayEntry.capitalBefore;
+      } else {
+        yesterdayCapital = capitalHistory[capitalHistory.length - 1].capitalAfter;
+      }
+    }
+    const todayPct = yesterdayCapital ? (todayPnl / yesterdayCapital) * 100 : 0;
+    
+    const riskPerTrade = currentCapital * (preferences.riskPerTradePct || 1.0) / 100;
+    const maxDailyRisk = currentCapital * (preferences.maxDailyRiskPct || 3.0) / 100;
+    
+    return {
+      todayPnl,
+      todayPct,
+      todayLosses,
+      riskPerTrade,
+      maxDailyRisk
+    };
+  }, [preferences, currentCapital, capitalHistory, filteredTrades]);
+
   // Mistake analysis
   const mistakeAnalysis = useMemo(() => {
     const tagMap: Record<string, { count: number; totalPnl: number; name: string }> = {};
@@ -257,6 +299,75 @@ export function Dashboard() {
         </div>
       </motion.div>
 
+      {/* Capital Setup Prompt */}
+      {preferences.startingCapital === undefined && (
+        <motion.div variants={itemVariants} className="stat-card" style={{ marginBottom: 24, background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Wallet size={18} color="var(--accent)" />
+                Set up your trading capital
+              </h3>
+              <p style={{ fontSize: 14, color: 'var(--fg-muted)' }}>Unlock capital tracking & risk suggestions by setting your starting capital.</p>
+            </div>
+            <button className="btn btn-primary" onClick={() => useTradingStore.getState().setActiveNav('settings')}>
+              Set Up Capital
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Capital & Risk Cards */}
+      {preferences.startingCapital !== undefined && currentCapital !== null && capitalStats && (
+        <motion.div variants={itemVariants} className="stats-grid" style={{ marginBottom: 24, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+          {/* Current Capital Card */}
+          <div className="stat-card">
+             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <div style={{ color: 'var(--accent)', opacity: 0.8 }}><Wallet size={20} /></div>
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-muted)' }}>Current Capital</span>
+             </div>
+             <div className="tabular-nums" style={{ fontSize: 28, fontWeight: 800, color: 'var(--fg)', lineHeight: 1.2 }}>
+               {formatCurrency(currentCapital)}
+             </div>
+             <div style={{ fontSize: 13, marginTop: 8, color: capitalStats.todayPnl >= 0 ? 'var(--profit)' : 'var(--loss)' }} className="tabular-nums">
+               {capitalStats.todayPnl >= 0 ? '+' : ''}{formatCurrency(capitalStats.todayPnl)} today ({capitalStats.todayPct >= 0 ? '+' : ''}{capitalStats.todayPct.toFixed(2)}%)
+             </div>
+          </div>
+          
+          {/* Risk Guide Card */}
+          <div className="stat-card">
+             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <div style={{ color: 'var(--warning)', opacity: 0.8 }}><ShieldAlert size={20} /></div>
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-muted)' }}>Risk Guide</span>
+             </div>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+                   <span style={{ color: 'var(--fg-muted)' }}>Safe risk per trade:</span>
+                   <span style={{ fontWeight: 600, color: 'var(--fg)' }} className="tabular-nums">{formatCurrency(capitalStats.riskPerTrade)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+                   <span style={{ color: 'var(--fg-muted)' }}>Max risk for today:</span>
+                   <span style={{ fontWeight: 600, color: 'var(--fg)' }} className="tabular-nums">{formatCurrency(capitalStats.maxDailyRisk)}</span>
+                </div>
+                {/* Progress bar for today's risk usage */}
+                <div style={{ marginTop: 8 }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                      <span style={{ color: 'var(--fg-muted)' }}>Risk Used Today</span>
+                      <span style={{ color: 'var(--fg)' }} className="tabular-nums">{formatCurrency(capitalStats.todayLosses)}</span>
+                   </div>
+                   <div style={{ width: '100%', height: 6, background: 'var(--bg)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ 
+                        height: '100%', 
+                        background: capitalStats.todayLosses > capitalStats.maxDailyRisk ? 'var(--loss)' : 'var(--warning)', 
+                        width: `${Math.min(100, (capitalStats.todayLosses / (capitalStats.maxDailyRisk || 1)) * 100)}%` 
+                      }} />
+                   </div>
+                </div>
+             </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Stats Grid */}
       <motion.div variants={itemVariants} className="stats-grid" style={{ marginBottom: 24 }}>
         <StatCard
@@ -317,6 +428,49 @@ export function Dashboard() {
         <>
           {/* Charts Row */}
           <motion.div variants={itemVariants} className="charts-grid" style={{ marginBottom: 24 }}>
+            {/* Capital Growth Curve (New) */}
+            {capitalHistory.length > 0 && (
+              <div className="stat-card" style={{ padding: 0 }}>
+                <div style={{ padding: '20px 24px 0' }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)', marginBottom: 4 }}>
+                    Capital Growth Curve
+                  </h3>
+                  <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Total capital over time</p>
+                </div>
+                <div style={{ padding: '16px 8px 8px', height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={capitalHistory}>
+                      <defs>
+                        <linearGradient id="capitalGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(val) => format(parseISO(val), 'MMM dd')} />
+                      <YAxis tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 12,
+                          fontSize: 13,
+                          color: 'var(--fg)',
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="capitalAfter"
+                        stroke="#22c55e"
+                        strokeWidth={2}
+                        fill="url(#capitalGrad)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
             {/* Equity Curve */}
             <div className="stat-card" style={{ padding: 0 }}>
               <div style={{ padding: '20px 24px 0' }}>

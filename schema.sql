@@ -215,3 +215,27 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- New additive columns for capital settings
+ALTER TABLE profiles 
+ADD COLUMN starting_capital NUMERIC,
+ADD COLUMN risk_per_trade_pct NUMERIC DEFAULT 1.0,
+ADD COLUMN max_daily_risk_pct NUMERIC DEFAULT 3.0;
+
+-- Capital History Table
+CREATE TABLE capital_history (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  date TEXT NOT NULL, -- YYYY-MM-DD
+  capital_before NUMERIC NOT NULL,
+  net_pnl NUMERIC NOT NULL,
+  capital_after NUMERIC NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  UNIQUE(user_id, date)
+);
+
+ALTER TABLE capital_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own capital history" ON capital_history FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can update own capital history" ON capital_history FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own capital history" ON capital_history FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete own capital history" ON capital_history FOR DELETE USING (auth.uid() = user_id);

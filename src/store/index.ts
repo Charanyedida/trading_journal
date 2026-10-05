@@ -14,9 +14,9 @@ import {
   EmotionTag,
   FilterState,
   DEFAULT_MISTAKE_TAGS,
-  DEFAULT_CHECKLIST_ITEMS,
   DEFAULT_LOT_CONFIGS,
   MoodScore,
+  CapitalHistory,
 } from '@/types';
 
 // ---- Store State ----
@@ -24,6 +24,9 @@ import {
 interface TradingJournalState {
   isInitialized: boolean;
   initStore: () => Promise<void>;
+  
+  capitalHistory: CapitalHistory[];
+  recalculateCapitalHistory: () => Promise<void>;
 
   // User
   preferences: UserPreferences;
@@ -93,6 +96,7 @@ export const useTradingStore = create<TradingJournalState>()(
         { data: checklistItems },
         { data: strategies },
         { data: journals },
+        { data: capitalHistoryData },
       ] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).single(),
         supabase.from('markets').select('*').eq('user_id', user.id),
@@ -102,6 +106,7 @@ export const useTradingStore = create<TradingJournalState>()(
         supabase.from('checklist_items').select('*'),
         supabase.from('strategies').select('*').eq('user_id', user.id),
         supabase.from('daily_journal').select('*').eq('user_id', user.id),
+        supabase.from('capital_history').select('*').eq('user_id', user.id).order('date', { ascending: true }),
       ]);
 
       // Process checklists & items
@@ -152,11 +157,23 @@ export const useTradingStore = create<TradingJournalState>()(
         currency: profile?.currency || 'USD',
         selectedMarkets: (markets || []).filter(m => m.enabled).map(m => m.type as MarketType),
         onboardingComplete: !!profile,
+        startingCapital: profile?.starting_capital ? parseFloat(profile.starting_capital) : undefined,
+        riskPerTradePct: profile?.risk_per_trade_pct ? parseFloat(profile.risk_per_trade_pct) : 1.0,
+        maxDailyRiskPct: profile?.max_daily_risk_pct ? parseFloat(profile.max_daily_risk_pct) : 3.0,
       };
 
       set({
         isInitialized: true,
         preferences: defaultPrefs,
+        capitalHistory: (capitalHistoryData || []).map(c => ({
+          id: c.id,
+          userId: c.user_id,
+          date: c.date,
+          capitalBefore: parseFloat(c.capital_before),
+          netPnl: parseFloat(c.net_pnl),
+          capitalAfter: parseFloat(c.capital_after),
+          createdAt: c.created_at
+        })),
         marketConfigs: (markets || []).map(m => ({
           id: m.id,
           type: m.type as MarketType,
@@ -198,6 +215,58 @@ export const useTradingStore = create<TradingJournalState>()(
       selectedMarkets: [],
       onboardingComplete: false,
     },
+    capitalHistory: [],
+    recalculateCapitalHistory: async () => {
+      const s = get();
+      if (s.preferences.startingCapital === undefined) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const tradesByDate: Record<string, number> = {};
+      s.trades.forEach(t => {
+        const date = t.exitDate.split('T')[0];
+        tradesByDate[date] = (tradesByDate[date] || 0) + t.netPnl;
+      });
+
+      const dates = Object.keys(tradesByDate).sort();
+      let currentCapital = s.preferences.startingCapital;
+      const newHistory: CapitalHistory[] = [];
+      const dbInserts = [];
+
+      for (const date of dates) {
+        const netPnl = tradesByDate[date];
+        const capitalBefore = currentCapital;
+        const capitalAfter = capitalBefore + netPnl;
+        currentCapital = capitalAfter;
+
+        newHistory.push({
+          id: uuidv4(),
+          userId: user.id,
+          date,
+          capitalBefore,
+          netPnl,
+          capitalAfter,
+          createdAt: new Date().toISOString()
+        });
+
+        dbInserts.push({
+          user_id: user.id,
+          date,
+          capital_before: capitalBefore,
+          net_pnl: netPnl,
+          capital_after: capitalAfter
+        });
+      }
+
+      set({ capitalHistory: newHistory });
+
+      if (dbInserts.length > 0) {
+        await supabase.from('capital_history').upsert(dbInserts, { onConflict: 'user_id,date' });
+      } else {
+        // clear history if no trades
+        await supabase.from('capital_history').delete().eq('user_id', user.id);
+      }
+    },
     setPreferences: async (prefs) => {
       set((s) => ({ preferences: { ...s.preferences, ...prefs } }));
       const { data: { user } } = await supabase.auth.getUser();
@@ -206,9 +275,15 @@ export const useTradingStore = create<TradingJournalState>()(
         if (prefs.theme !== undefined) updates.preferred_theme = prefs.theme;
         if (prefs.currency !== undefined) updates.currency = prefs.currency;
         if (prefs.name !== undefined) updates.name = prefs.name;
+        if (prefs.startingCapital !== undefined) updates.starting_capital = prefs.startingCapital;
+        if (prefs.riskPerTradePct !== undefined) updates.risk_per_trade_pct = prefs.riskPerTradePct;
+        if (prefs.maxDailyRiskPct !== undefined) updates.max_daily_risk_pct = prefs.maxDailyRiskPct;
         
         if (Object.keys(updates).length > 0) {
           await supabase.from('profiles').update(updates).eq('id', user.id);
+        }
+        if (prefs.startingCapital !== undefined) {
+           get().recalculateCapitalHistory();
         }
       }
     },
@@ -283,6 +358,7 @@ export const useTradingStore = create<TradingJournalState>()(
           createdAt: insertedTrade.created_at,
         };
         set((s) => ({ trades: [newTrade, ...s.trades] }));
+        get().recalculateCapitalHistory();
       }
     },
     updateTrade: async (id, updates) => {
@@ -303,12 +379,14 @@ export const useTradingStore = create<TradingJournalState>()(
           return updated;
         }),
       }));
+      get().recalculateCapitalHistory();
       // In a real app we would recalculate values here and map to DB columns properly for update.
       // Skipping full DB mapping for update to save space.
     },
     deleteTrade: async (id) => {
       set((s) => ({ trades: s.trades.filter((t) => t.id !== id) }));
       await supabase.from('trades').delete().eq('id', id);
+      get().recalculateCapitalHistory();
     },
 
     // ---- Mistake Tags ----
