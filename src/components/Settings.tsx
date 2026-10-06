@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTradingStore } from '@/store';
 import { createClient } from '@/utils/supabase/client';
-import { Settings as SettingsIcon, User, Tag, Download, Sun, Moon, Check, X, AlertTriangle, AlertCircle, Wallet } from 'lucide-react';
+import { Settings as SettingsIcon, User, Tag, Download, Sun, Moon, Check, X, AlertTriangle, AlertCircle, Wallet, ArrowDownLeft, ArrowUpRight, Trash2, Plus } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
-import { MARKET_LABELS, MarketType, MistakeTag } from '@/types';
+import { MARKET_LABELS, MarketType, MistakeTag, AdjustmentType } from '@/types';
 
 export function Settings() {
-  const { preferences, setPreferences, mistakeTags, addMistakeTag, deleteMistakeTag, toggleMarket, marketConfigs, trades } = useTradingStore();
+  const { preferences, setPreferences, mistakeTags, addMistakeTag, deleteMistakeTag, toggleMarket, marketConfigs, trades, capitalAdjustments, addCapitalAdjustment, deleteCapitalAdjustment } = useTradingStore();
   const { theme, toggleTheme } = useTheme();
   
   const [name, setName] = useState(preferences.name);
@@ -47,6 +47,24 @@ export function Settings() {
     if (!newTagName.trim()) return;
     addMistakeTag(newTagName, newTagColor);
     setNewTagName('');
+  };
+
+  // Capital adjustment form state
+  const [adjType, setAdjType] = useState<AdjustmentType>('withdrawal');
+  const [adjAmount, setAdjAmount] = useState('');
+  const [adjPurpose, setAdjPurpose] = useState('');
+  const [adjDate, setAdjDate] = useState(new Date().toISOString().split('T')[0]);
+  const [adjSaved, setAdjSaved] = useState(false);
+
+  const handleAddAdjustment = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseFloat(adjAmount);
+    if (!amount || amount <= 0 || !adjPurpose.trim()) return;
+    addCapitalAdjustment(adjType, amount, adjPurpose.trim(), adjDate);
+    setAdjAmount('');
+    setAdjPurpose('');
+    setAdjSaved(true);
+    setTimeout(() => setAdjSaved(false), 2000);
   };
 
   const handleExportCSV = async () => {
@@ -205,6 +223,146 @@ export function Settings() {
               onBlur={handleSaveRisk}
             />
           </div>
+        </div>
+
+        {/* Capital Management */}
+        <div className="stat-card">
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ArrowDownLeft size={18} color="var(--accent)" />
+            Capital Management
+          </h2>
+          <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+            Track deposits into and withdrawals from your trading account. These adjustments update your capital tracking.
+          </p>
+
+          <form onSubmit={handleAddAdjustment} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+            {/* Type toggle */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className={`btn ${adjType === 'deposit' ? 'btn-success' : 'btn-secondary'}`}
+                style={{ flex: 1 }}
+                onClick={() => setAdjType('deposit')}
+              >
+                <ArrowUpRight size={16} />
+                Deposit
+              </button>
+              <button
+                type="button"
+                className={`btn ${adjType === 'withdrawal' ? 'btn-danger' : 'btn-secondary'}`}
+                style={{ flex: 1 }}
+                onClick={() => setAdjType('withdrawal')}
+              >
+                <ArrowDownLeft size={16} />
+                Withdrawal
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label className="input-label">Amount</label>
+                <input
+                  className="input tabular-nums"
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 50000"
+                  value={adjAmount}
+                  onChange={(e) => setAdjAmount(e.target.value)}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="input-label">Date</label>
+                <input
+                  className="input"
+                  type="date"
+                  value={adjDate}
+                  onChange={(e) => setAdjDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="input-label">Purpose / Notes</label>
+              <input
+                className="input"
+                placeholder={adjType === 'withdrawal' ? 'e.g. Profit withdrawal, Personal use' : 'e.g. Additional capital, Salary credit'}
+                value={adjPurpose}
+                onChange={(e) => setAdjPurpose(e.target.value)}
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={!adjAmount || parseFloat(adjAmount) <= 0 || !adjPurpose.trim()}
+              style={{ width: '100%' }}
+            >
+              {adjSaved ? <Check size={16} /> : <Plus size={16} />}
+              {adjSaved ? 'Saved!' : `Add ${adjType === 'deposit' ? 'Deposit' : 'Withdrawal'}`}
+            </button>
+          </form>
+
+          {/* Transaction History */}
+          {capitalAdjustments.length > 0 && (
+            <div>
+              <label className="input-label" style={{ marginBottom: 10 }}>Transaction History</label>
+              <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[...capitalAdjustments].reverse().map((adj) => (
+                  <div
+                    key={adj.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <div style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: adj.type === 'deposit' ? 'var(--profit-bg, rgba(34,197,94,0.1))' : 'var(--loss-bg, rgba(239,68,68,0.1))',
+                      flexShrink: 0,
+                    }}>
+                      {adj.type === 'deposit'
+                        ? <ArrowUpRight size={16} style={{ color: 'var(--profit)' }} />
+                        : <ArrowDownLeft size={16} style={{ color: 'var(--loss)' }} />
+                      }
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {adj.purpose}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>
+                        {adj.date}
+                      </div>
+                    </div>
+                    <div className="tabular-nums" style={{ fontWeight: 700, fontSize: 14, color: adj.type === 'deposit' ? 'var(--profit)' : 'var(--loss)', flexShrink: 0 }}>
+                      {adj.type === 'deposit' ? '+' : '-'}₹{adj.amount.toLocaleString()}
+                    </div>
+                    <button
+                      className="btn-icon btn-ghost"
+                      onClick={() => {
+                        if (window.confirm('Delete this adjustment?')) {
+                          deleteCapitalAdjustment(adj.id);
+                        }
+                      }}
+                      title="Delete"
+                      style={{ flexShrink: 0 }}
+                    >
+                      <Trash2 size={14} style={{ color: 'var(--loss)' }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Mistake Tags Manager */}

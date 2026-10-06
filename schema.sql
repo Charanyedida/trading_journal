@@ -239,3 +239,20 @@ CREATE POLICY "Users can view own capital history" ON capital_history FOR SELECT
 CREATE POLICY "Users can update own capital history" ON capital_history FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own capital history" ON capital_history FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can delete own capital history" ON capital_history FOR DELETE USING (auth.uid() = user_id);
+
+-- Capital Adjustments Table (deposits & withdrawals)
+CREATE TABLE capital_adjustments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('deposit', 'withdrawal')),
+  amount NUMERIC NOT NULL,
+  purpose TEXT,
+  date TEXT NOT NULL, -- YYYY-MM-DD
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE capital_adjustments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own capital adjustments" ON capital_adjustments FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can update own capital adjustments" ON capital_adjustments FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own capital adjustments" ON capital_adjustments FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete own capital adjustments" ON capital_adjustments FOR DELETE USING (auth.uid() = user_id);

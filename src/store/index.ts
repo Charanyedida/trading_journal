@@ -17,6 +17,8 @@ import {
   DEFAULT_LOT_CONFIGS,
   MoodScore,
   CapitalHistory,
+  CapitalAdjustment,
+  AdjustmentType,
 } from '@/types';
 
 // ---- Store State ----
@@ -27,6 +29,11 @@ interface TradingJournalState {
   
   capitalHistory: CapitalHistory[];
   recalculateCapitalHistory: () => Promise<void>;
+
+  // Capital Adjustments
+  capitalAdjustments: CapitalAdjustment[];
+  addCapitalAdjustment: (type: AdjustmentType, amount: number, purpose: string, date: string) => Promise<void>;
+  deleteCapitalAdjustment: (id: string) => Promise<void>;
 
   // User
   preferences: UserPreferences;
@@ -97,6 +104,7 @@ export const useTradingStore = create<TradingJournalState>()(
         { data: strategies },
         { data: journals },
         { data: capitalHistoryData },
+        { data: capitalAdjustmentsData },
       ] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).single(),
         supabase.from('markets').select('*').eq('user_id', user.id),
@@ -107,6 +115,7 @@ export const useTradingStore = create<TradingJournalState>()(
         supabase.from('strategies').select('*').eq('user_id', user.id),
         supabase.from('daily_journal').select('*').eq('user_id', user.id),
         supabase.from('capital_history').select('*').eq('user_id', user.id).order('date', { ascending: true }),
+        supabase.from('capital_adjustments').select('*').eq('user_id', user.id).order('date', { ascending: true }),
       ]);
 
       // Process checklists & items
@@ -174,6 +183,15 @@ export const useTradingStore = create<TradingJournalState>()(
           capitalAfter: parseFloat(c.capital_after),
           createdAt: c.created_at
         })),
+        capitalAdjustments: (capitalAdjustmentsData || []).map(a => ({
+          id: a.id,
+          userId: a.user_id,
+          type: a.type as AdjustmentType,
+          amount: parseFloat(a.amount),
+          purpose: a.purpose || '',
+          date: a.date,
+          createdAt: a.created_at,
+        })),
         marketConfigs: (markets || []).map(m => ({
           id: m.id,
           type: m.type as MarketType,
@@ -216,27 +234,40 @@ export const useTradingStore = create<TradingJournalState>()(
       onboardingComplete: false,
     },
     capitalHistory: [],
+    capitalAdjustments: [],
     recalculateCapitalHistory: async () => {
       const s = get();
       if (s.preferences.startingCapital === undefined) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Build a map of trade PnL by date
       const tradesByDate: Record<string, number> = {};
       s.trades.forEach(t => {
         const date = t.exitDate.split('T')[0];
         tradesByDate[date] = (tradesByDate[date] || 0) + t.netPnl;
       });
 
-      const dates = Object.keys(tradesByDate).sort();
+      // Build a map of capital adjustments by date
+      const adjustmentsByDate: Record<string, number> = {};
+      s.capitalAdjustments.forEach(a => {
+        const adj = a.type === 'deposit' ? a.amount : -a.amount;
+        adjustmentsByDate[a.date] = (adjustmentsByDate[a.date] || 0) + adj;
+      });
+
+      // Merge all dates that have either trades or adjustments
+      const allDates = new Set([...Object.keys(tradesByDate), ...Object.keys(adjustmentsByDate)]);
+      const dates = Array.from(allDates).sort();
+
       let currentCapital = s.preferences.startingCapital;
       const newHistory: CapitalHistory[] = [];
       const dbInserts = [];
 
       for (const date of dates) {
-        const netPnl = tradesByDate[date];
+        const netPnl = tradesByDate[date] || 0;
+        const adjustment = adjustmentsByDate[date] || 0;
         const capitalBefore = currentCapital;
-        const capitalAfter = capitalBefore + netPnl;
+        const capitalAfter = capitalBefore + netPnl + adjustment;
         currentCapital = capitalAfter;
 
         newHistory.push({
@@ -244,7 +275,7 @@ export const useTradingStore = create<TradingJournalState>()(
           userId: user.id,
           date,
           capitalBefore,
-          netPnl,
+          netPnl: netPnl + adjustment,
           capitalAfter,
           createdAt: new Date().toISOString()
         });
@@ -253,7 +284,7 @@ export const useTradingStore = create<TradingJournalState>()(
           user_id: user.id,
           date,
           capital_before: capitalBefore,
-          net_pnl: netPnl,
+          net_pnl: netPnl + adjustment,
           capital_after: capitalAfter
         });
       }
@@ -263,9 +294,40 @@ export const useTradingStore = create<TradingJournalState>()(
       if (dbInserts.length > 0) {
         await supabase.from('capital_history').upsert(dbInserts, { onConflict: 'user_id,date' });
       } else {
-        // clear history if no trades
+        // clear history if no trades/adjustments
         await supabase.from('capital_history').delete().eq('user_id', user.id);
       }
+    },
+    addCapitalAdjustment: async (type, amount, purpose, date) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase.from('capital_adjustments').insert({
+        user_id: user.id,
+        type,
+        amount,
+        purpose,
+        date,
+      }).select().single();
+
+      if (data) {
+        const newAdj: CapitalAdjustment = {
+          id: data.id,
+          userId: user.id,
+          type,
+          amount,
+          purpose,
+          date,
+          createdAt: data.created_at,
+        };
+        set((s) => ({ capitalAdjustments: [...s.capitalAdjustments, newAdj] }));
+        get().recalculateCapitalHistory();
+      }
+    },
+    deleteCapitalAdjustment: async (id) => {
+      set((s) => ({ capitalAdjustments: s.capitalAdjustments.filter(a => a.id !== id) }));
+      await supabase.from('capital_adjustments').delete().eq('id', id);
+      get().recalculateCapitalHistory();
     },
     setPreferences: async (prefs) => {
       set((s) => ({ preferences: { ...s.preferences, ...prefs } }));
@@ -366,7 +428,8 @@ export const useTradingStore = create<TradingJournalState>()(
         trades: s.trades.map((t) => {
           if (t.id !== id) return t;
           const updated = { ...t, ...updates };
-          if (updates.entryPrice || updates.exitPrice || updates.quantity || updates.direction) {
+          // Recalculate PnL if any price/quantity/direction field changed
+          if (updates.entryPrice !== undefined || updates.exitPrice !== undefined || updates.quantity !== undefined || updates.direction !== undefined || updates.fees !== undefined) {
             const dir = updated.direction;
             updated.pnl = dir === 'long'
                 ? (updated.exitPrice - updated.entryPrice) * updated.quantity
@@ -379,9 +442,32 @@ export const useTradingStore = create<TradingJournalState>()(
           return updated;
         }),
       }));
+
+      // Get the fully updated trade for DB sync
+      const updatedTrade = get().trades.find(t => t.id === id);
+      if (updatedTrade) {
+        const dbUpdates: any = {};
+        if (updates.symbol !== undefined) dbUpdates.symbol = updatedTrade.symbol;
+        if (updates.direction !== undefined) dbUpdates.direction = updatedTrade.direction;
+        if (updates.entryPrice !== undefined) dbUpdates.entry_price = updatedTrade.entryPrice;
+        if (updates.exitPrice !== undefined) dbUpdates.exit_price = updatedTrade.exitPrice;
+        if (updates.quantity !== undefined) dbUpdates.quantity = updatedTrade.quantity;
+        if (updates.fees !== undefined) dbUpdates.fees = updatedTrade.fees;
+        if (updates.notes !== undefined) dbUpdates.notes = updatedTrade.notes;
+        if (updates.emotionTag !== undefined) dbUpdates.emotion_tag = updatedTrade.emotionTag;
+        if (updates.strategyId !== undefined) dbUpdates.strategy_id = updatedTrade.strategyId;
+        if (updates.plannedSL !== undefined) dbUpdates.sl = updatedTrade.plannedSL;
+        if (updates.plannedTarget !== undefined) dbUpdates.target = updatedTrade.plannedTarget;
+        // Always sync computed fields
+        dbUpdates.pnl = updatedTrade.pnl;
+        dbUpdates.pnl_percent = updatedTrade.pnlPercent;
+        dbUpdates.net_pnl = updatedTrade.netPnl;
+
+        if (Object.keys(dbUpdates).length > 0) {
+          await supabase.from('trades').update(dbUpdates).eq('id', id);
+        }
+      }
       get().recalculateCapitalHistory();
-      // In a real app we would recalculate values here and map to DB columns properly for update.
-      // Skipping full DB mapping for update to save space.
     },
     deleteTrade: async (id) => {
       set((s) => ({ trades: s.trades.filter((t) => t.id !== id) }));

@@ -122,6 +122,18 @@ export interface CapitalHistory {
   createdAt: string;
 }
 
+export type AdjustmentType = 'deposit' | 'withdrawal';
+
+export interface CapitalAdjustment {
+  id: string;
+  userId: string;
+  type: AdjustmentType;
+  amount: number;
+  purpose: string;
+  date: string; // YYYY-MM-DD
+  createdAt: string;
+}
+
 // ---- User Preferences ----
 
 export interface UserPreferences {

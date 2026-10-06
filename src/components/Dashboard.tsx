@@ -51,7 +51,7 @@ function AnimatedValue({ value, prefix = '', suffix = '' }: { value: string | nu
 }
 
 export function Dashboard() {
-  const { trades, mistakeTags, checklists, filters, setFilters, preferences, capitalHistory } = useTradingStore();
+  const { trades, mistakeTags, checklists, filters, setFilters, preferences, capitalHistory, capitalAdjustments } = useTradingStore();
 
   const filteredTrades = useMemo(() => {
     let t = [...trades];
@@ -331,6 +331,39 @@ export function Dashboard() {
              </div>
              <div style={{ fontSize: 13, marginTop: 8, color: capitalStats.todayPnl >= 0 ? 'var(--profit)' : 'var(--loss)' }} className="tabular-nums">
                {capitalStats.todayPnl >= 0 ? '+' : ''}{formatCurrency(capitalStats.todayPnl)} today ({capitalStats.todayPct >= 0 ? '+' : ''}{capitalStats.todayPct.toFixed(2)}%)
+             </div>
+             {/* Starting capital & adjustments info */}
+             <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--fg-muted)' }}>
+                 <span>Starting Capital:</span>
+                 <span className="tabular-nums" style={{ fontWeight: 600, color: 'var(--fg)' }}>{formatCurrency(preferences.startingCapital!)}</span>
+               </div>
+               {capitalAdjustments.length > 0 && (() => {
+                 const totalDeposits = capitalAdjustments.filter(a => a.type === 'deposit').reduce((s, a) => s + a.amount, 0);
+                 const totalWithdrawals = capitalAdjustments.filter(a => a.type === 'withdrawal').reduce((s, a) => s + a.amount, 0);
+                 return (
+                   <>
+                     {totalDeposits > 0 && (
+                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--fg-muted)' }}>
+                         <span>Total Deposited:</span>
+                         <span className="tabular-nums" style={{ fontWeight: 600, color: 'var(--profit)' }}>+{formatCurrency(totalDeposits)}</span>
+                       </div>
+                     )}
+                     {totalWithdrawals > 0 && (
+                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--fg-muted)' }}>
+                         <span>Total Withdrawn:</span>
+                         <span className="tabular-nums" style={{ fontWeight: 600, color: 'var(--loss)' }}>-{formatCurrency(totalWithdrawals)}</span>
+                       </div>
+                     )}
+                   </>
+                 );
+               })()}
+               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--fg-muted)' }}>
+                 <span>Overall Return:</span>
+                 <span className="tabular-nums" style={{ fontWeight: 600, color: (currentCapital - preferences.startingCapital!) >= 0 ? 'var(--profit)' : 'var(--loss)' }}>
+                   {((currentCapital - preferences.startingCapital!) / preferences.startingCapital! * 100).toFixed(2)}%
+                 </span>
+               </div>
              </div>
           </div>
           
