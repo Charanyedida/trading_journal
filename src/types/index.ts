@@ -144,6 +144,7 @@ export interface UserPreferences {
   selectedMarkets: MarketType[];
   onboardingComplete: boolean;
   startingCapital?: number;
+  currentCapital?: number;
   riskPerTradePct?: number;
   maxDailyRiskPct?: number;
 }

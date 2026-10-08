@@ -30,6 +30,9 @@ interface TradingJournalState {
   capitalHistory: CapitalHistory[];
   recalculateCapitalHistory: () => Promise<void>;
 
+  // Capital — incremental update helper
+  updateCurrentCapital: (delta: number) => Promise<void>;
+
   // Capital Adjustments
   capitalAdjustments: CapitalAdjustment[];
   addCapitalAdjustment: (type: AdjustmentType, amount: number, purpose: string, date: string) => Promise<void>;
@@ -167,6 +170,7 @@ export const useTradingStore = create<TradingJournalState>()(
         selectedMarkets: (markets || []).filter(m => m.enabled).map(m => m.type as MarketType),
         onboardingComplete: !!profile,
         startingCapital: profile?.starting_capital ? parseFloat(profile.starting_capital) : undefined,
+        currentCapital: profile?.current_capital ? parseFloat(profile.current_capital) : (profile?.starting_capital ? parseFloat(profile.starting_capital) : undefined),
         riskPerTradePct: profile?.risk_per_trade_pct ? parseFloat(profile.risk_per_trade_pct) : 1.0,
         maxDailyRiskPct: profile?.max_daily_risk_pct ? parseFloat(profile.max_daily_risk_pct) : 3.0,
       };
@@ -235,6 +239,20 @@ export const useTradingStore = create<TradingJournalState>()(
     },
     capitalHistory: [],
     capitalAdjustments: [],
+    // Incremental capital update — adjusts currentCapital by a delta and persists to DB
+    updateCurrentCapital: async (delta: number) => {
+      const s = get();
+      const oldCapital = s.preferences.currentCapital ?? s.preferences.startingCapital ?? 0;
+      const newCapital = oldCapital + delta;
+      set((s) => ({ preferences: { ...s.preferences, currentCapital: newCapital } }));
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('profiles').update({ current_capital: newCapital }).eq('id', user.id);
+      }
+    },
+
+    // Full rebuild — manual repair only, called from Settings "Recalculate" button
     recalculateCapitalHistory: async () => {
       const s = get();
       if (s.preferences.startingCapital === undefined) return;
@@ -259,16 +277,16 @@ export const useTradingStore = create<TradingJournalState>()(
       const allDates = new Set([...Object.keys(tradesByDate), ...Object.keys(adjustmentsByDate)]);
       const dates = Array.from(allDates).sort();
 
-      let currentCapital = s.preferences.startingCapital;
+      let runningCapital = s.preferences.startingCapital;
       const newHistory: CapitalHistory[] = [];
       const dbInserts = [];
 
       for (const date of dates) {
         const netPnl = tradesByDate[date] || 0;
         const adjustment = adjustmentsByDate[date] || 0;
-        const capitalBefore = currentCapital;
+        const capitalBefore = runningCapital;
         const capitalAfter = capitalBefore + netPnl + adjustment;
-        currentCapital = capitalAfter;
+        runningCapital = capitalAfter;
 
         newHistory.push({
           id: uuidv4(),
@@ -289,12 +307,18 @@ export const useTradingStore = create<TradingJournalState>()(
         });
       }
 
-      set({ capitalHistory: newHistory });
+      // Update currentCapital to the final computed value
+      set({
+        capitalHistory: newHistory,
+        preferences: { ...get().preferences, currentCapital: runningCapital },
+      });
+      await supabase.from('profiles').update({ current_capital: runningCapital }).eq('id', user.id);
 
       if (dbInserts.length > 0) {
-        await supabase.from('capital_history').upsert(dbInserts, { onConflict: 'user_id,date' });
+        // Clear old history then insert fresh
+        await supabase.from('capital_history').delete().eq('user_id', user.id);
+        await supabase.from('capital_history').insert(dbInserts);
       } else {
-        // clear history if no trades/adjustments
         await supabase.from('capital_history').delete().eq('user_id', user.id);
       }
     },
@@ -321,13 +345,20 @@ export const useTradingStore = create<TradingJournalState>()(
           createdAt: data.created_at,
         };
         set((s) => ({ capitalAdjustments: [...s.capitalAdjustments, newAdj] }));
-        get().recalculateCapitalHistory();
+        // Incremental capital update
+        const delta = type === 'deposit' ? amount : -amount;
+        await get().updateCurrentCapital(delta);
       }
     },
     deleteCapitalAdjustment: async (id) => {
+      const adj = get().capitalAdjustments.find(a => a.id === id);
       set((s) => ({ capitalAdjustments: s.capitalAdjustments.filter(a => a.id !== id) }));
       await supabase.from('capital_adjustments').delete().eq('id', id);
-      get().recalculateCapitalHistory();
+      // Reverse the adjustment
+      if (adj) {
+        const delta = adj.type === 'deposit' ? -adj.amount : adj.amount;
+        await get().updateCurrentCapital(delta);
+      }
     },
     setPreferences: async (prefs) => {
       set((s) => ({ preferences: { ...s.preferences, ...prefs } }));
@@ -337,16 +368,21 @@ export const useTradingStore = create<TradingJournalState>()(
         if (prefs.theme !== undefined) updates.preferred_theme = prefs.theme;
         if (prefs.currency !== undefined) updates.currency = prefs.currency;
         if (prefs.name !== undefined) updates.name = prefs.name;
-        if (prefs.startingCapital !== undefined) updates.starting_capital = prefs.startingCapital;
+        if (prefs.startingCapital !== undefined) {
+          updates.starting_capital = prefs.startingCapital;
+          // When setting starting capital for the first time, also set currentCapital
+          if (prefs.currentCapital !== undefined) {
+            updates.current_capital = prefs.currentCapital;
+          }
+        }
+        if (prefs.currentCapital !== undefined) updates.current_capital = prefs.currentCapital;
         if (prefs.riskPerTradePct !== undefined) updates.risk_per_trade_pct = prefs.riskPerTradePct;
         if (prefs.maxDailyRiskPct !== undefined) updates.max_daily_risk_pct = prefs.maxDailyRiskPct;
         
         if (Object.keys(updates).length > 0) {
           await supabase.from('profiles').update(updates).eq('id', user.id);
         }
-        if (prefs.startingCapital !== undefined) {
-           get().recalculateCapitalHistory();
-        }
+        // No auto-recalculation — only manual via Settings
       }
     },
 
@@ -420,10 +456,15 @@ export const useTradingStore = create<TradingJournalState>()(
           createdAt: insertedTrade.created_at,
         };
         set((s) => ({ trades: [newTrade, ...s.trades] }));
-        get().recalculateCapitalHistory();
+        // Incremental capital update
+        await get().updateCurrentCapital(netPnl);
       }
     },
     updateTrade: async (id, updates) => {
+      // Capture old netPnl before updating
+      const oldTrade = get().trades.find(t => t.id === id);
+      const oldNetPnl = oldTrade?.netPnl ?? 0;
+
       set((s) => ({
         trades: s.trades.map((t) => {
           if (t.id !== id) return t;
@@ -466,13 +507,25 @@ export const useTradingStore = create<TradingJournalState>()(
         if (Object.keys(dbUpdates).length > 0) {
           await supabase.from('trades').update(dbUpdates).eq('id', id);
         }
+
+        // Incremental capital update: adjust by the difference in netPnl
+        const delta = updatedTrade.netPnl - oldNetPnl;
+        if (delta !== 0) {
+          await get().updateCurrentCapital(delta);
+        }
       }
-      get().recalculateCapitalHistory();
     },
     deleteTrade: async (id) => {
+      // Capture the trade's netPnl before removing
+      const trade = get().trades.find(t => t.id === id);
+      const tradeNetPnl = trade?.netPnl ?? 0;
+
       set((s) => ({ trades: s.trades.filter((t) => t.id !== id) }));
       await supabase.from('trades').delete().eq('id', id);
-      get().recalculateCapitalHistory();
+      // Reverse the trade's effect on capital
+      if (tradeNetPnl !== 0) {
+        await get().updateCurrentCapital(-tradeNetPnl);
+      }
     },
 
     // ---- Mistake Tags ----

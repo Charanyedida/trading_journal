@@ -9,7 +9,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { MARKET_LABELS, MarketType, MistakeTag, AdjustmentType } from '@/types';
 
 export function Settings() {
-  const { preferences, setPreferences, mistakeTags, addMistakeTag, deleteMistakeTag, toggleMarket, marketConfigs, trades, capitalAdjustments, addCapitalAdjustment, deleteCapitalAdjustment } = useTradingStore();
+  const { preferences, setPreferences, mistakeTags, addMistakeTag, deleteMistakeTag, toggleMarket, marketConfigs, trades, capitalAdjustments, addCapitalAdjustment, deleteCapitalAdjustment, recalculateCapitalHistory } = useTradingStore();
   const { theme, toggleTheme } = useTheme();
   
   const [name, setName] = useState(preferences.name);
@@ -19,11 +19,38 @@ export function Settings() {
   const [riskPerTradePct, setRiskPerTradePct] = useState(preferences.riskPerTradePct?.toString() || '1.0');
   const [maxDailyRiskPct, setMaxDailyRiskPct] = useState(preferences.maxDailyRiskPct?.toString() || '3.0');
   const [savedCapital, setSavedCapital] = useState(false);
+  const [isEditingCapital, setIsEditingCapital] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+
+  // Starting capital is locked once set AND trades exist
+  const capitalIsLocked = preferences.startingCapital !== undefined && trades.length > 0;
 
   const handleSaveCapital = () => {
-    setPreferences({ startingCapital: startingCapital ? parseFloat(startingCapital) : undefined });
+    const val = startingCapital ? parseFloat(startingCapital) : undefined;
+    // Set both startingCapital and currentCapital together
+    setPreferences({
+      startingCapital: val,
+      currentCapital: val,
+    });
     setSavedCapital(true);
+    setIsEditingCapital(false);
     setTimeout(() => setSavedCapital(false), 2000);
+  };
+
+  const handleResetCapital = () => {
+    if (!window.confirm(
+      'This will reset your starting capital and recalculate your entire capital history from scratch. This cannot be undone.\n\nAre you sure?'
+    )) return;
+    setIsEditingCapital(true);
+  };
+
+  const handleRecalculate = async () => {
+    if (!window.confirm(
+      'This will recalculate your current capital and entire capital history from your starting capital + all trades + all deposits/withdrawals.\n\nUse this if your capital seems out of sync.\n\nProceed?'
+    )) return;
+    setIsRecalculating(true);
+    await recalculateCapitalHistory();
+    setIsRecalculating(false);
   };
 
   const handleSaveRisk = () => {
@@ -185,20 +212,75 @@ export function Settings() {
           </h2>
 
           <div style={{ marginBottom: 20 }}>
-            <label className="input-label">Starting Capital</label>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <input
-                className="input"
-                type="number"
-                value={startingCapital}
-                onChange={(e) => setStartingCapital(e.target.value)}
-                placeholder="e.g. 100000"
-              />
-              <button className="btn btn-primary" onClick={handleSaveCapital}>
-                {savedCapital ? <Check size={16} /> : 'Save'}
-              </button>
-            </div>
+            <label className="input-label">Starting Capital (Initial Amount)</label>
+            {capitalIsLocked && !isEditingCapital ? (
+              /* Read-only view when capital is locked */
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ 
+                  flex: 1, padding: '10px 14px', background: 'var(--bg-secondary)', 
+                  borderRadius: 10, border: '1px solid var(--border)', fontSize: 16, 
+                  fontWeight: 700, color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' 
+                }}>
+                  ₹{preferences.startingCapital?.toLocaleString()}
+                </div>
+                <button className="btn btn-secondary" onClick={handleResetCapital} style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                  <AlertTriangle size={14} /> Reset
+                </button>
+              </div>
+            ) : (
+              /* Editable view */
+              <div style={{ display: 'flex', gap: 12 }}>
+                <input
+                  className="input"
+                  type="number"
+                  value={startingCapital}
+                  onChange={(e) => setStartingCapital(e.target.value)}
+                  placeholder="e.g. 100000"
+                />
+                <button className="btn btn-primary" onClick={handleSaveCapital}>
+                  {savedCapital ? <Check size={16} /> : 'Save'}
+                </button>
+              </div>
+            )}
+            {capitalIsLocked && !isEditingCapital && (
+              <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 6, lineHeight: 1.4 }}>
+                Starting capital is locked because you have trades. Use "Reset" to change it (will trigger recalculation).
+              </p>
+            )}
           </div>
+
+          {/* Current Capital (read-only indicator) */}
+          {preferences.currentCapital !== undefined && (
+            <div style={{ marginBottom: 20, padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, color: 'var(--fg-muted)', fontWeight: 500 }}>Current Capital</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>
+                  ₹{preferences.currentCapital.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 4 }}>
+                Updates automatically from trades and deposits/withdrawals.
+              </p>
+            </div>
+          )}
+
+          {/* Recalculate button */}
+          {preferences.startingCapital !== undefined && (
+            <div style={{ marginBottom: 20 }}>
+              <button
+                className="btn btn-secondary"
+                onClick={handleRecalculate}
+                disabled={isRecalculating}
+                style={{ width: '100%', fontSize: 13 }}
+              >
+                <AlertCircle size={14} />
+                {isRecalculating ? 'Recalculating...' : 'Recalculate Capital (Repair)'}
+              </button>
+              <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 6, lineHeight: 1.4 }}>
+                Use this if your capital seems out of sync. It will rebuild your entire capital history from starting capital + all trades + all deposits/withdrawals.
+              </p>
+            </div>
+          )}
           
           <div style={{ marginBottom: 20 }}>
             <label className="input-label">Risk Per Trade (%)</label>

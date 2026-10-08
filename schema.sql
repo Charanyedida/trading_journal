@@ -219,6 +219,7 @@ CREATE TRIGGER on_auth_user_created
 -- New additive columns for capital settings
 ALTER TABLE profiles 
 ADD COLUMN starting_capital NUMERIC,
+ADD COLUMN current_capital NUMERIC,
 ADD COLUMN risk_per_trade_pct NUMERIC DEFAULT 1.0,
 ADD COLUMN max_daily_risk_pct NUMERIC DEFAULT 3.0;
 

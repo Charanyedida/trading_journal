@@ -167,12 +167,14 @@ export function Dashboard() {
     });
   }, [filteredTrades]);
 
-  // Capital tracking
+  // Capital tracking — use the persisted currentCapital from preferences
   const currentCapital = useMemo(() => {
     if (preferences.startingCapital === undefined) return null;
+    if (preferences.currentCapital !== undefined) return preferences.currentCapital;
+    // Fallback: if currentCapital not yet persisted, derive from history
     if (capitalHistory.length === 0) return preferences.startingCapital;
     return capitalHistory[capitalHistory.length - 1].capitalAfter;
-  }, [preferences.startingCapital, capitalHistory]);
+  }, [preferences.startingCapital, preferences.currentCapital, capitalHistory]);
 
   const capitalStats = useMemo(() => {
     if (preferences.startingCapital === undefined || currentCapital === null) return null;
@@ -360,9 +362,18 @@ export function Dashboard() {
                })()}
                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--fg-muted)' }}>
                  <span>Overall Return:</span>
-                 <span className="tabular-nums" style={{ fontWeight: 600, color: (currentCapital - preferences.startingCapital!) >= 0 ? 'var(--profit)' : 'var(--loss)' }}>
-                   {((currentCapital - preferences.startingCapital!) / preferences.startingCapital! * 100).toFixed(2)}%
-                 </span>
+                 {(() => {
+                   // True trading return = exclude deposits/withdrawals
+                   const totalDeposits = capitalAdjustments.filter(a => a.type === 'deposit').reduce((s, a) => s + a.amount, 0);
+                   const totalWithdrawals = capitalAdjustments.filter(a => a.type === 'withdrawal').reduce((s, a) => s + a.amount, 0);
+                   const tradingReturn = currentCapital - preferences.startingCapital! - totalDeposits + totalWithdrawals;
+                   const returnPct = preferences.startingCapital! > 0 ? (tradingReturn / preferences.startingCapital! * 100) : 0;
+                   return (
+                     <span className="tabular-nums" style={{ fontWeight: 600, color: tradingReturn >= 0 ? 'var(--profit)' : 'var(--loss)' }}>
+                       {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%
+                     </span>
+                   );
+                 })()}
                </div>
              </div>
           </div>
