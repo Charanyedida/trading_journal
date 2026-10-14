@@ -11,7 +11,7 @@ export function Onboarding() {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
 
-  const selectedMarkets = marketConfigs.filter((m) => m.enabled).map((m) => m.type);
+  const selectedMarkets = Array.from(new Set(marketConfigs.filter((m) => m.enabled).map((m) => m.type)));
 
   const handleFinish = () => {
     setPreferences({

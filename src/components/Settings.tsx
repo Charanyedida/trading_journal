@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useTradingStore } from '@/store';
 import { createClient } from '@/utils/supabase/client';
@@ -11,6 +11,15 @@ import { MARKET_LABELS, MarketType, MistakeTag, AdjustmentType } from '@/types';
 export function Settings() {
   const { preferences, setPreferences, mistakeTags, addMistakeTag, deleteMistakeTag, toggleMarket, marketConfigs, trades, capitalAdjustments, addCapitalAdjustment, deleteCapitalAdjustment, recalculateCapitalHistory } = useTradingStore();
   const { theme, toggleTheme } = useTheme();
+
+  const uniqueMarkets = useMemo(() => {
+    const seen = new Set<string>();
+    return marketConfigs.filter(m => {
+      if (seen.has(m.type)) return false;
+      seen.add(m.type);
+      return true;
+    });
+  }, [marketConfigs]);
   
   const [name, setName] = useState(preferences.name);
   const [savedUser, setSavedUser] = useState(false);
@@ -189,8 +198,8 @@ export function Settings() {
           <div>
             <label className="input-label">Active Markets</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {marketConfigs.map(m => (
-                <label key={m.type} className="checkbox-container" style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 8 }}>
+              {uniqueMarkets.map(m => (
+                <label key={m.id || m.type} className="checkbox-container" style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 8 }}>
                   <input
                     type="checkbox"
                     className="checkbox"

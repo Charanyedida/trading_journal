@@ -24,10 +24,10 @@ export default function Home() {
 
   if (!isInitialized) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
-        <div className="flex flex-col items-center">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-4 text-gray-400 font-medium animate-pulse">Loading workspace...</p>
+      <div className="spatial-loader">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div className="spatial-loader-spinner" />
+          <p className="spatial-loader-text">Loading workspace...</p>
         </div>
       </div>
     );

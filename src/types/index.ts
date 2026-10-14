@@ -6,6 +6,8 @@ export type MarketType = 'equity' | 'fno' | 'forex' | 'crypto' | 'gold';
 
 export type TradeDirection = 'long' | 'short';
 
+export type OptionType = 'call' | 'put';
+
 export type EmotionTag =
   | 'calm'
   | 'confident'
@@ -39,6 +41,7 @@ export interface Trade {
   marketType: MarketType;
   symbol: string;
   direction: TradeDirection;
+  optionType?: OptionType | null;
   entryDate: string; // ISO
   exitDate: string; // ISO
   entryPrice: number;

@@ -49,6 +49,7 @@ CREATE TABLE trades (
   screenshot_url TEXT,
   notes TEXT,
   emotion_tag TEXT,
+  option_type TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -257,3 +258,11 @@ CREATE POLICY "Users can view own capital adjustments" ON capital_adjustments FO
 CREATE POLICY "Users can update own capital adjustments" ON capital_adjustments FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own capital adjustments" ON capital_adjustments FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can delete own capital adjustments" ON capital_adjustments FOR DELETE USING (auth.uid() = user_id);
+
+-- Option Type column for Trades (call, put, or null)
+ALTER TABLE trades ADD COLUMN IF NOT EXISTS option_type TEXT;
+
+-- Ensure unique market per user
+CREATE UNIQUE INDEX IF NOT EXISTS markets_user_id_type_idx ON markets (user_id, type);
+
+

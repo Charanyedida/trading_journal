@@ -243,7 +243,15 @@ export function Dashboard() {
     }));
   }, [filteredTrades]);
 
-  const enabledMarkets = useTradingStore((s) => s.marketConfigs).filter((m) => m.enabled);
+  const marketConfigs = useTradingStore((s) => s.marketConfigs);
+  const enabledMarkets = useMemo(() => {
+    const seen = new Set<string>();
+    return marketConfigs.filter((m) => {
+      if (!m.enabled || seen.has(m.type)) return false;
+      seen.add(m.type);
+      return true;
+    });
+  }, [marketConfigs]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -254,8 +262,18 @@ export function Dashboard() {
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+    hidden: { opacity: 0, y: 20, scale: 0.98 },
+    show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as const } },
+  };
+
+  const chartTooltipStyle = {
+    background: 'var(--surface-solid)',
+    border: '1px solid var(--border)',
+    borderRadius: 14,
+    fontSize: 13,
+    color: 'var(--fg)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+    backdropFilter: 'blur(20px)',
   };
 
   return (
@@ -265,13 +283,13 @@ export function Dashboard() {
       animate="show"
     >
       {/* Header */}
-      <motion.div variants={itemVariants} style={{ marginBottom: 28 }}>
+      <motion.div variants={itemVariants} className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--fg)', marginBottom: 4 }}>
+            <h1>
               Welcome back, {preferences.name || 'Trader'} 👋
             </h1>
-            <p style={{ color: 'var(--fg-muted)', fontSize: 14 }}>
+            <p>
               {filteredTrades.length > 0
                 ? "Here's your trading performance at a glance."
                 : 'Start logging your trades to see your analytics.'}
@@ -289,7 +307,7 @@ export function Dashboard() {
               </button>
               {enabledMarkets.map((m) => (
                 <button
-                  key={m.type}
+                  key={m.id || m.type}
                   className={`tab ${filters.marketType === m.type ? 'active' : ''}`}
                   onClick={() => setFilters({ marketType: m.type })}
                 >
@@ -303,7 +321,7 @@ export function Dashboard() {
 
       {/* Capital Setup Prompt */}
       {preferences.startingCapital === undefined && (
-        <motion.div variants={itemVariants} className="stat-card" style={{ marginBottom: 24, background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
+        <motion.div variants={itemVariants} className="stat-card" style={{ marginBottom: 24, padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
             <div>
               <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -324,8 +342,10 @@ export function Dashboard() {
         <motion.div variants={itemVariants} className="stats-grid" style={{ marginBottom: 24, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
           {/* Current Capital Card */}
           <div className="stat-card">
-             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <div style={{ color: 'var(--accent)', opacity: 0.8 }}><Wallet size={20} /></div>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div className="icon-orb" style={{ background: 'var(--accent-glow)', color: 'var(--accent)' }}>
+                  <Wallet size={20} />
+                </div>
                 <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-muted)' }}>Current Capital</span>
              </div>
              <div className="tabular-nums" style={{ fontSize: 28, fontWeight: 800, color: 'var(--fg)', lineHeight: 1.2 }}>
@@ -335,7 +355,8 @@ export function Dashboard() {
                {capitalStats.todayPnl >= 0 ? '+' : ''}{formatCurrency(capitalStats.todayPnl)} today ({capitalStats.todayPct >= 0 ? '+' : ''}{capitalStats.todayPct.toFixed(2)}%)
              </div>
              {/* Starting capital & adjustments info */}
-             <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+             <div className="spatial-divider" />
+             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--fg-muted)' }}>
                  <span>Starting Capital:</span>
                  <span className="tabular-nums" style={{ fontWeight: 600, color: 'var(--fg)' }}>{formatCurrency(preferences.startingCapital!)}</span>
@@ -380,11 +401,13 @@ export function Dashboard() {
           
           {/* Risk Guide Card */}
           <div className="stat-card">
-             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <div style={{ color: 'var(--warning)', opacity: 0.8 }}><ShieldAlert size={20} /></div>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div className="icon-orb" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>
+                  <ShieldAlert size={20} />
+                </div>
                 <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-muted)' }}>Risk Guide</span>
              </div>
-             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
                    <span style={{ color: 'var(--fg-muted)' }}>Safe risk per trade:</span>
                    <span style={{ fontWeight: 600, color: 'var(--fg)' }} className="tabular-nums">{formatCurrency(capitalStats.riskPerTrade)}</span>
@@ -394,16 +417,20 @@ export function Dashboard() {
                    <span style={{ fontWeight: 600, color: 'var(--fg)' }} className="tabular-nums">{formatCurrency(capitalStats.maxDailyRisk)}</span>
                 </div>
                 {/* Progress bar for today's risk usage */}
-                <div style={{ marginTop: 8 }}>
-                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                <div style={{ marginTop: 4 }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
                       <span style={{ color: 'var(--fg-muted)' }}>Risk Used Today</span>
                       <span style={{ color: 'var(--fg)' }} className="tabular-nums">{formatCurrency(capitalStats.todayLosses)}</span>
                    </div>
-                   <div style={{ width: '100%', height: 6, background: 'var(--bg)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ 
-                        height: '100%', 
-                        background: capitalStats.todayLosses > capitalStats.maxDailyRisk ? 'var(--loss)' : 'var(--warning)', 
-                        width: `${Math.min(100, (capitalStats.todayLosses / (capitalStats.maxDailyRisk || 1)) * 100)}%` 
+                   <div className="spatial-progress">
+                      <div className="spatial-progress-fill" style={{ 
+                        background: capitalStats.todayLosses > capitalStats.maxDailyRisk 
+                          ? 'linear-gradient(90deg, var(--loss), #dc2626)' 
+                          : 'linear-gradient(90deg, var(--warning), #f59e0b)', 
+                        width: `${Math.min(100, (capitalStats.todayLosses / (capitalStats.maxDailyRisk || 1)) * 100)}%`,
+                        boxShadow: capitalStats.todayLosses > capitalStats.maxDailyRisk 
+                          ? '0 0 12px var(--loss-glow)' 
+                          : '0 0 12px rgba(251, 191, 36, 0.2)' 
                       }} />
                    </div>
                 </div>
@@ -475,7 +502,7 @@ export function Dashboard() {
             {/* Capital Growth Curve (New) */}
             {capitalHistory.length > 0 && (
               <div className="stat-card" style={{ padding: 0 }}>
-                <div style={{ padding: '20px 24px 0' }}>
+                <div style={{ padding: '22px 26px 0' }}>
                   <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)', marginBottom: 4 }}>
                     Capital Growth Curve
                   </h3>
@@ -486,26 +513,18 @@ export function Dashboard() {
                     <AreaChart data={capitalHistory}>
                       <defs>
                         <linearGradient id="capitalGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#34d399" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(val) => format(parseISO(val), 'MMM dd')} />
                       <YAxis tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
-                      <Tooltip
-                        contentStyle={{
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 12,
-                          fontSize: 13,
-                          color: 'var(--fg)',
-                        }}
-                      />
+                      <Tooltip contentStyle={chartTooltipStyle} />
                       <Area
                         type="monotone"
                         dataKey="capitalAfter"
-                        stroke="#22c55e"
+                        stroke="#34d399"
                         strokeWidth={2}
                         fill="url(#capitalGrad)"
                       />
@@ -517,7 +536,7 @@ export function Dashboard() {
 
             {/* Equity Curve */}
             <div className="stat-card" style={{ padding: 0 }}>
-              <div style={{ padding: '20px 24px 0' }}>
+              <div style={{ padding: '22px 26px 0' }}>
                 <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)', marginBottom: 4 }}>
                   Equity Curve
                 </h3>
@@ -528,22 +547,14 @@ export function Dashboard() {
                   <AreaChart data={equityCurve}>
                     <defs>
                       <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
                         <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 12,
-                        fontSize: 13,
-                        color: 'var(--fg)',
-                      }}
-                    />
+                    <Tooltip contentStyle={chartTooltipStyle} />
                     <Area
                       type="monotone"
                       dataKey="pnl"
@@ -559,7 +570,7 @@ export function Dashboard() {
             {/* Mistake Analysis */}
             {mistakeAnalysis.length > 0 && (
               <div className="stat-card" style={{ padding: 0 }}>
-                <div style={{ padding: '20px 24px 0' }}>
+                <div style={{ padding: '22px 26px 0' }}>
                   <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)', marginBottom: 4 }}>
                     Most Costly Mistakes
                   </h3>
@@ -572,20 +583,14 @@ export function Dashboard() {
                       <XAxis type="number" tick={{ fontSize: 11 }} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={100} />
                       <Tooltip
-                        contentStyle={{
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 12,
-                          fontSize: 13,
-                          color: 'var(--fg)',
-                        }}
+                        contentStyle={chartTooltipStyle}
                         formatter={(val: any) => [formatCurrency(Number(val) || 0), 'P&L Impact']}
                       />
                       <Bar dataKey="totalPnl" radius={[0, 6, 6, 0]}>
                         {mistakeAnalysis.map((entry, index) => (
                           <Cell
                             key={`cell-${index}`}
-                            fill={entry.totalPnl >= 0 ? '#22c55e' : '#ef4444'}
+                            fill={entry.totalPnl >= 0 ? '#34d399' : '#f87171'}
                           />
                         ))}
                       </Bar>
@@ -636,7 +641,7 @@ export function Dashboard() {
         </>
       ) : (
         <motion.div variants={itemVariants}>
-          <div className="empty-state" style={{ background: 'var(--surface)', borderRadius: 'var(--radius-2xl)', border: '1px solid var(--border)' }}>
+          <div className="empty-state">
             <TrendingUp size={48} />
             <h3>No trades yet</h3>
             <p>Log your first trade to see your dashboard come alive with analytics and insights.</p>
@@ -654,7 +659,7 @@ export function Dashboard() {
   );
 }
 
-// ---- Stat Card Component ----
+// ---- Stat Card Component (Spatial) ----
 
 function StatCard({
   icon,
@@ -678,10 +683,26 @@ function StatCard({
     neutral: 'var(--fg-secondary)',
   };
 
+  const bgMap = {
+    profit: 'var(--profit-bg)',
+    loss: 'var(--loss-bg)',
+    warning: 'var(--warning-bg)',
+    neutral: 'var(--surface-hover)',
+  };
+
   return (
     <div className="stat-card">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <div style={{ color: colorMap[color], opacity: 0.8 }}>{icon}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        {/* Spatial icon orb */}
+        <div
+          className="icon-orb"
+          style={{
+            background: bgMap[color],
+            color: colorMap[color],
+          }}
+        >
+          {icon}
+        </div>
         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-muted)' }}>{label}</span>
       </div>
       <div
@@ -696,7 +717,7 @@ function StatCard({
         <AnimatedValue value={value} />
       </div>
       {subtitle && (
-        <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }} className="tabular-nums">
+        <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 5 }} className="tabular-nums">
           {subtitle}
         </div>
       )}

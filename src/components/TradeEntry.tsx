@@ -10,6 +10,7 @@ import {
   EMOTION_LABELS,
   EmotionTag,
   TradeDirection,
+  OptionType,
   ChecklistResponse,
 } from '@/types';
 import {
@@ -33,20 +34,29 @@ export function TradeEntry() {
     capitalHistory,
   } = useTradingStore();
 
-  const enabledMarkets = marketConfigs.filter((m) => m.enabled).length > 0
-    ? marketConfigs.filter((m) => m.enabled)
-    : ([
-        { type: 'equity' },
-        { type: 'fno' },
-        { type: 'forex' },
-        { type: 'crypto' },
-        { type: 'gold' },
-      ] as { type: MarketType }[]);
+  const enabledMarkets = useMemo(() => {
+    const seen = new Set<string>();
+    const filtered = marketConfigs.filter((m) => {
+      if (!m.enabled || seen.has(m.type)) return false;
+      seen.add(m.type);
+      return true;
+    });
+    return filtered.length > 0
+      ? filtered
+      : ([
+          { type: 'equity' },
+          { type: 'fno' },
+          { type: 'forex' },
+          { type: 'crypto' },
+          { type: 'gold' },
+        ] as { type: MarketType }[]);
+  }, [marketConfigs]);
 
   const [form, setForm] = useState({
     marketType: enabledMarkets[0]?.type || ('equity' as MarketType),
     symbol: '',
     direction: 'long' as TradeDirection,
+    optionType: null as OptionType | null,
     entryDate: new Date().toISOString().slice(0, 16),
     exitDate: new Date().toISOString().slice(0, 16),
     entryPrice: '',
@@ -122,6 +132,7 @@ export function TradeEntry() {
       marketType: form.marketType,
       symbol: form.symbol.toUpperCase(),
       direction: form.direction,
+      optionType: form.optionType,
       entryDate: new Date(form.entryDate).toISOString(),
       exitDate: new Date(form.exitDate).toISOString(),
       entryPrice: parseFloat(form.entryPrice),
@@ -205,6 +216,7 @@ export function TradeEntry() {
                 <label className="input-label">Direction</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
+                    type="button"
                     className={`btn ${form.direction === 'long' ? 'btn-success' : 'btn-secondary'}`}
                     style={{ flex: 1 }}
                     onClick={() => setForm({ ...form, direction: 'long' })}
@@ -213,6 +225,7 @@ export function TradeEntry() {
                     Long
                   </button>
                   <button
+                    type="button"
                     className={`btn ${form.direction === 'short' ? 'btn-danger' : 'btn-secondary'}`}
                     style={{ flex: 1 }}
                     onClick={() => setForm({ ...form, direction: 'short' })}
@@ -223,8 +236,48 @@ export function TradeEntry() {
                 </div>
               </div>
 
+              <div>
+                <label className="input-label">Option Type</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    className={`btn ${!form.optionType ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ flex: 1, padding: '8px 10px', fontSize: 13 }}
+                    onClick={() => setForm({ ...form, optionType: null })}
+                  >
+                    None
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${form.optionType === 'call' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{
+                      flex: 1,
+                      padding: '8px 10px',
+                      fontSize: 13,
+                      ...(form.optionType === 'call' ? { background: '#2563eb', color: '#fff', borderColor: '#3b82f6' } : {})
+                    }}
+                    onClick={() => setForm({ ...form, optionType: 'call' })}
+                  >
+                    Call (CE)
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${form.optionType === 'put' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{
+                      flex: 1,
+                      padding: '8px 10px',
+                      fontSize: 13,
+                      ...(form.optionType === 'put' ? { background: '#db2777', color: '#fff', borderColor: '#ec4899' } : {})
+                    }}
+                    onClick={() => setForm({ ...form, optionType: 'put' })}
+                  >
+                    Put (PE)
+                  </button>
+                </div>
+              </div>
+
               {strategies.length > 0 && (
-                <div>
+                <div style={{ gridColumn: '1 / -1' }}>
                   <label className="input-label">Strategy</label>
                   <select
                     className="select"

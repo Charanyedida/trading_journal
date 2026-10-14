@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { useTradingStore } from '@/store';
-import { MarketType, MARKET_LABELS, Trade, MistakeTag, EMOTION_LABELS, EmotionTag, TradeDirection } from '@/types';
+import { MarketType, MARKET_LABELS, Trade, MistakeTag, EMOTION_LABELS, EmotionTag, TradeDirection, OptionType } from '@/types';
 import { Search, Filter, Trash2, ArrowUpRight, ArrowDownRight, ArrowUpDown, Pencil, X, Save, Check } from 'lucide-react';
 
 export function TradeLog() {
@@ -19,8 +19,10 @@ export function TradeLog() {
   // Edit modal state
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
   const [editForm, setEditForm] = useState<{
+    marketType: MarketType;
     symbol: string;
     direction: TradeDirection;
+    optionType: OptionType | null;
     entryDate: string;
     exitDate: string;
     entryPrice: string;
@@ -35,13 +37,23 @@ export function TradeLog() {
   } | null>(null);
   const [editSaved, setEditSaved] = useState(false);
 
-  const enabledMarkets = marketConfigs.filter((m) => m.enabled);
+  const enabledMarkets = useMemo(() => {
+    const seen = new Set<string>();
+    const filtered = marketConfigs.filter((m) => {
+      if (!m.enabled || seen.has(m.type)) return false;
+      seen.add(m.type);
+      return true;
+    });
+    return filtered.length > 0 ? filtered : marketConfigs;
+  }, [marketConfigs]);
 
   const openEditModal = (trade: Trade) => {
     setEditingTrade(trade);
     setEditForm({
+      marketType: trade.marketType,
       symbol: trade.symbol,
       direction: trade.direction,
+      optionType: trade.optionType || null,
       entryDate: trade.entryDate.slice(0, 16),
       exitDate: trade.exitDate.slice(0, 16),
       entryPrice: trade.entryPrice.toString(),
@@ -66,8 +78,10 @@ export function TradeLog() {
   const handleSaveEdit = () => {
     if (!editingTrade || !editForm) return;
     updateTrade(editingTrade.id, {
+      marketType: editForm.marketType,
       symbol: editForm.symbol.toUpperCase(),
       direction: editForm.direction,
+      optionType: editForm.optionType,
       entryDate: new Date(editForm.entryDate).toISOString(),
       exitDate: new Date(editForm.exitDate).toISOString(),
       entryPrice: parseFloat(editForm.entryPrice),
@@ -124,7 +138,12 @@ export function TradeLog() {
         (t) =>
           t.symbol.toLowerCase().includes(lower) ||
           t.notes.toLowerCase().includes(lower) ||
-          t.emotionTag?.toLowerCase().includes(lower)
+          t.emotionTag?.toLowerCase().includes(lower) ||
+          (t.optionType && (
+            t.optionType.toLowerCase().includes(lower) ||
+            (t.optionType === 'call' && lower.includes('ce')) ||
+            (t.optionType === 'put' && lower.includes('pe'))
+          ))
       );
     }
 
@@ -133,7 +152,7 @@ export function TradeLog() {
       const valA = a[sortConfig.key];
       const valB = b[sortConfig.key];
 
-      if (valA === null || valB === null) return 0;
+      if (valA === null || valB === null || valA === undefined || valB === undefined) return 0;
       
       if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
       if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
@@ -252,15 +271,33 @@ export function TradeLog() {
                         </div>
                       </td>
                       <td>
-                        {trade.direction === 'long' ? (
-                          <span className="badge badge-success" style={{ background: 'var(--profit-bg)', color: 'var(--profit)', border: 'none' }}>
-                            <ArrowUpRight size={14} /> Long
-                          </span>
-                        ) : (
-                          <span className="badge badge-danger" style={{ background: 'var(--loss-bg)', color: 'var(--loss)', border: 'none' }}>
-                            <ArrowDownRight size={14} /> Short
-                          </span>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          {trade.direction === 'long' ? (
+                            <span className="badge badge-success" style={{ background: 'var(--profit-bg)', color: 'var(--profit)', border: 'none' }}>
+                              <ArrowUpRight size={14} /> Long
+                            </span>
+                          ) : (
+                            <span className="badge badge-danger" style={{ background: 'var(--loss-bg)', color: 'var(--loss)', border: 'none' }}>
+                              <ArrowDownRight size={14} /> Short
+                            </span>
+                          )}
+                          {trade.optionType && (
+                            <span
+                              className="badge"
+                              style={{
+                                background: trade.optionType === 'call' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(236, 72, 153, 0.15)',
+                                color: trade.optionType === 'call' ? '#3b82f6' : '#ec4899',
+                                border: trade.optionType === 'call' ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(236, 72, 153, 0.3)',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                padding: '2px 6px',
+                              }}
+                            >
+                              {trade.optionType === 'call' ? 'Call (CE)' : 'Put (PE)'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <div
@@ -409,6 +446,20 @@ export function TradeLog() {
                   </h3>
                   <div className="form-grid">
                     <div>
+                      <label className="input-label">Market</label>
+                      <select
+                        className="select"
+                        value={editForm.marketType}
+                        onChange={(e) => setEditForm({ ...editForm, marketType: e.target.value as MarketType })}
+                      >
+                        {enabledMarkets.map((m) => (
+                          <option key={m.type} value={m.type}>
+                            {MARKET_LABELS[m.type]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
                       <label className="input-label">Symbol</label>
                       <input
                         className="input"
@@ -421,6 +472,7 @@ export function TradeLog() {
                       <label className="input-label">Direction</label>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
+                          type="button"
                           className={`btn ${editForm.direction === 'long' ? 'btn-success' : 'btn-secondary'}`}
                           style={{ flex: 1 }}
                           onClick={() => setEditForm({ ...editForm, direction: 'long' })}
@@ -428,11 +480,51 @@ export function TradeLog() {
                           <ArrowUpRight size={14} /> Long
                         </button>
                         <button
+                          type="button"
                           className={`btn ${editForm.direction === 'short' ? 'btn-danger' : 'btn-secondary'}`}
                           style={{ flex: 1 }}
                           onClick={() => setEditForm({ ...editForm, direction: 'short' })}
                         >
                           <ArrowDownRight size={14} /> Short
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="input-label">Option Type</label>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          className={`btn ${!editForm.optionType ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ flex: 1, padding: '8px 8px', fontSize: 13 }}
+                          onClick={() => setEditForm({ ...editForm, optionType: null })}
+                        >
+                          None
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${editForm.optionType === 'call' ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{
+                            flex: 1,
+                            padding: '8px 8px',
+                            fontSize: 13,
+                            ...(editForm.optionType === 'call' ? { background: '#2563eb', color: '#fff', borderColor: '#3b82f6' } : {})
+                          }}
+                          onClick={() => setEditForm({ ...editForm, optionType: 'call' })}
+                        >
+                          Call (CE)
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${editForm.optionType === 'put' ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{
+                            flex: 1,
+                            padding: '8px 8px',
+                            fontSize: 13,
+                            ...(editForm.optionType === 'put' ? { background: '#db2777', color: '#fff', borderColor: '#ec4899' } : {})
+                          }}
+                          onClick={() => setEditForm({ ...editForm, optionType: 'put' })}
+                        >
+                          Put (PE)
                         </button>
                       </div>
                     </div>

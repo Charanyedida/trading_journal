@@ -70,36 +70,21 @@ export function Sidebar() {
       {mobileOpen && (
         <div
           className="overlay"
-          style={{ zIndex: 45 }}
+          style={{ zIndex: 55 }}
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         {/* Logo */}
-        <div style={{ padding: '20px 20px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
-              }}
-            >
+        <div className="sidebar-logo">
+          <div className="sidebar-logo-inner">
+            <div className="sidebar-logo-icon">
               <TrendingUp size={20} color="#fff" />
             </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--fg)', lineHeight: 1.2 }}>
-                TradeLog
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--fg-muted)', fontWeight: 500 }}>
-                Trading Journal
-              </div>
+              <div className="sidebar-logo-text">TradeLog</div>
+              <div className="sidebar-logo-sub">Trading Journal</div>
             </div>
           </div>
           {/* Mobile close */}
@@ -115,7 +100,7 @@ export function Sidebar() {
         </div>
 
         {/* Nav items */}
-        <nav style={{ padding: '12px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <nav className="sidebar-nav">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = activeNav === item.id;
@@ -134,12 +119,13 @@ export function Sidebar() {
                   <span
                     style={{
                       marginLeft: 'auto',
-                      background: 'var(--accent)',
+                      background: 'var(--accent-gradient)',
                       color: '#fff',
                       padding: '2px 8px',
-                      borderRadius: 999,
+                      borderRadius: 'var(--radius-full)',
                       fontSize: 11,
                       fontWeight: 700,
+                      boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)',
                     }}
                   >
                     +
@@ -151,11 +137,10 @@ export function Sidebar() {
         </nav>
 
         {/* Bottom section: theme toggle and logout */}
-        <div style={{ padding: '12px 12px 20px', borderTop: '1px solid var(--border)' }}>
+        <div className="sidebar-footer">
           <button
             className="sidebar-link"
             onClick={toggleTheme}
-            style={{ width: '100%', marginBottom: 8 }}
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
@@ -164,7 +149,7 @@ export function Sidebar() {
           <button
             className="sidebar-link"
             onClick={handleLogout}
-            style={{ width: '100%', color: 'var(--red)' }}
+            style={{ color: 'var(--loss)' }}
           >
             <LogOut size={18} />
             Logout

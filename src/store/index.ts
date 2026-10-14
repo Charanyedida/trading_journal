@@ -19,6 +19,8 @@ import {
   CapitalHistory,
   CapitalAdjustment,
   AdjustmentType,
+  OptionType,
+  TradeDirection,
 } from '@/types';
 
 // ---- Store State ----
@@ -88,122 +90,193 @@ interface TradingJournalState {
 
 const supabase = createClient();
 
+let isStoreInitializing = false;
+
 export const useTradingStore = create<TradingJournalState>()(
   (set, get) => ({
     isInitialized: false,
     
     initStore: async () => {
-      if (get().isInitialized) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (get().isInitialized || isStoreInitializing) return;
+      isStoreInitializing = true;
 
-      const [
-        { data: profile },
-        { data: markets },
-        { data: trades },
-        { data: mistakeTags },
-        { data: checklists },
-        { data: checklistItems },
-        { data: strategies },
-        { data: journals },
-        { data: capitalHistoryData },
-        { data: capitalAdjustmentsData },
-      ] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', user.id).single(),
-        supabase.from('markets').select('*').eq('user_id', user.id),
-        supabase.from('trades').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('mistake_tags').select('*').eq('user_id', user.id),
-        supabase.from('checklists').select('*').eq('user_id', user.id),
-        supabase.from('checklist_items').select('*'),
-        supabase.from('strategies').select('*').eq('user_id', user.id),
-        supabase.from('daily_journal').select('*').eq('user_id', user.id),
-        supabase.from('capital_history').select('*').eq('user_id', user.id).order('date', { ascending: true }),
-        supabase.from('capital_adjustments').select('*').eq('user_id', user.id).order('date', { ascending: true }),
-      ]);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-      // Process checklists & items
-      const checklistsWithItems = (checklists || []).map(c => ({
-        id: c.id,
-        name: c.name,
-        marketType: c.market_type as MarketType | 'all',
-        items: (checklistItems || []).filter(i => i.checklist_id === c.id).map(i => ({
-          id: i.id,
-          text: i.text,
-          order: i.item_order
-        })).sort((a, b) => a.order - b.order)
-      }));
+        const [
+          { data: profile },
+          { data: markets },
+          { data: trades },
+          { data: mistakeTags },
+          { data: checklists },
+          { data: checklistItems },
+          { data: strategies },
+          { data: journals },
+          { data: capitalHistoryData },
+          { data: capitalAdjustmentsData },
+        ] = await Promise.all([
+          supabase.from('profiles').select('*').eq('id', user.id).single(),
+          supabase.from('markets').select('*').eq('user_id', user.id),
+          supabase.from('trades').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+          supabase.from('mistake_tags').select('*').eq('user_id', user.id),
+          supabase.from('checklists').select('*').eq('user_id', user.id),
+          supabase.from('checklist_items').select('*'),
+          supabase.from('strategies').select('*').eq('user_id', user.id),
+          supabase.from('daily_journal').select('*').eq('user_id', user.id),
+          supabase.from('capital_history').select('*').eq('user_id', user.id).order('date', { ascending: true }),
+          supabase.from('capital_adjustments').select('*').eq('user_id', user.id).order('date', { ascending: true }),
+        ]);
 
-      // Map trades
-      const mappedTrades = (trades || []).map(t => ({
-        id: t.id,
-        userId: t.user_id,
-        marketType: 'equity' as MarketType, // Will need mapping properly, skipping for brevity
-        symbol: t.symbol,
-        direction: t.direction as 'long' | 'short',
-        entryDate: t.created_at, // Mapping from DB
-        exitDate: t.created_at,
-        entryPrice: parseFloat(t.entry_price),
-        exitPrice: parseFloat(t.exit_price),
-        quantity: parseFloat(t.quantity),
-        plannedSL: t.sl ? parseFloat(t.sl) : null,
-        actualSL: t.sl ? parseFloat(t.sl) : null,
-        plannedTarget: t.target ? parseFloat(t.target) : null,
-        actualTarget: t.target ? parseFloat(t.target) : null,
-        pnl: parseFloat(t.pnl),
-        pnlPercent: parseFloat(t.pnl_percent),
-        netPnl: parseFloat(t.net_pnl),
-        fees: parseFloat(t.fees),
-        screenshotUrl: t.screenshot_url,
-        notes: t.notes,
-        emotionTag: t.emotion_tag as EmotionTag | null,
-        strategyId: t.strategy_id,
-        createdAt: t.created_at,
-        mistakeTags: [], // Need separate query ideally
-        checklistResponses: []
-      }));
+        // Deduplicate markets by type
+        const uniqueMarketsByType = new Map<MarketType, any>();
+        const duplicateMarketIdsToDelete: string[] = [];
 
-      const defaultPrefs = {
-        name: profile?.name || '',
-        email: profile?.email || '',
-        theme: profile?.preferred_theme as 'dark' | 'light' || 'dark',
-        currency: profile?.currency || 'USD',
-        selectedMarkets: (markets || []).filter(m => m.enabled).map(m => m.type as MarketType),
-        onboardingComplete: !!profile,
-        startingCapital: profile?.starting_capital ? parseFloat(profile.starting_capital) : undefined,
-        currentCapital: profile?.current_capital ? parseFloat(profile.current_capital) : (profile?.starting_capital ? parseFloat(profile.starting_capital) : undefined),
-        riskPerTradePct: profile?.risk_per_trade_pct ? parseFloat(profile.risk_per_trade_pct) : 1.0,
-        maxDailyRiskPct: profile?.max_daily_risk_pct ? parseFloat(profile.max_daily_risk_pct) : 3.0,
-      };
+        (markets || []).forEach((m: any) => {
+          const type = m.type as MarketType;
+          if (!uniqueMarketsByType.has(type)) {
+            uniqueMarketsByType.set(type, m);
+          } else {
+            duplicateMarketIdsToDelete.push(m.id);
+          }
+        });
 
-      set({
-        isInitialized: true,
-        preferences: defaultPrefs,
-        capitalHistory: (capitalHistoryData || []).map(c => ({
+        // Cleanup any duplicate rows in DB asynchronously
+        if (duplicateMarketIdsToDelete.length > 0) {
+          supabase.from('markets').delete().in('id', duplicateMarketIdsToDelete).then(() => {});
+        }
+
+        // Ensure all 5 default market types exist
+        const DEFAULT_MARKET_TYPES: MarketType[] = ['equity', 'fno', 'forex', 'crypto', 'gold'];
+        const missingMarkets = DEFAULT_MARKET_TYPES.filter(t => !uniqueMarketsByType.has(t)).map(t => ({
+          user_id: user.id,
+          type: t,
+          enabled: true,
+          default_lot_config: DEFAULT_LOT_CONFIGS[t] || [],
+          currency: (t === 'forex' || t === 'crypto') ? 'USD' : 'INR',
+        }));
+
+        if (missingMarkets.length > 0) {
+          const { data: insertedMarkets } = await supabase.from('markets').insert(missingMarkets).select('*');
+          if (insertedMarkets) {
+            insertedMarkets.forEach((m: any) => {
+              if (!uniqueMarketsByType.has(m.type as MarketType)) {
+                uniqueMarketsByType.set(m.type as MarketType, m);
+              }
+            });
+          }
+        }
+
+        const currentMarkets = Array.from(uniqueMarketsByType.values());
+
+        const marketIdToType = new Map<string, MarketType>();
+        (markets || []).forEach((m: any) => {
+          marketIdToType.set(m.id, m.type as MarketType);
+        });
+        currentMarkets.forEach((m: any) => {
+          marketIdToType.set(m.id, m.type as MarketType);
+        });
+
+        // Process checklists & items
+        const checklistsWithItems = (checklists || []).map(c => ({
           id: c.id,
-          userId: c.user_id,
-          date: c.date,
-          capitalBefore: parseFloat(c.capital_before),
-          netPnl: parseFloat(c.net_pnl),
-          capitalAfter: parseFloat(c.capital_after),
-          createdAt: c.created_at
-        })),
-        capitalAdjustments: (capitalAdjustmentsData || []).map(a => ({
-          id: a.id,
-          userId: a.user_id,
-          type: a.type as AdjustmentType,
-          amount: parseFloat(a.amount),
-          purpose: a.purpose || '',
-          date: a.date,
-          createdAt: a.created_at,
-        })),
-        marketConfigs: (markets || []).map(m => ({
-          id: m.id,
-          type: m.type as MarketType,
-          enabled: m.enabled,
-          defaultLotConfigs: m.default_lot_config,
-          currency: m.currency
-        })),
-        trades: mappedTrades,
+          name: c.name,
+          marketType: c.market_type as MarketType | 'all',
+          items: (checklistItems || []).filter(i => i.checklist_id === c.id).map(i => ({
+            id: i.id,
+            text: i.text,
+            order: i.item_order
+          })).sort((a, b) => a.order - b.order)
+        }));
+
+        // Map trades
+        const mappedTrades: Trade[] = (trades || []).map((t: any) => {
+          const marketType: MarketType = (t.market_id && marketIdToType.get(t.market_id)) || 'equity';
+
+          let optionType: OptionType | null = null;
+          let notesText = t.notes || '';
+          if (t.option_type === 'call' || t.option_type === 'put') {
+            optionType = t.option_type;
+          } else if (notesText.includes('[Option: Call]')) {
+            optionType = 'call';
+            notesText = notesText.replace(/\[Option: Call\]\s*/g, '');
+          } else if (notesText.includes('[Option: Put]')) {
+            optionType = 'put';
+            notesText = notesText.replace(/\[Option: Put\]\s*/g, '');
+          }
+
+          return {
+            id: t.id,
+            userId: t.user_id,
+            marketType,
+            symbol: t.symbol,
+            direction: t.direction as TradeDirection,
+            optionType,
+            entryDate: t.created_at, // Mapping from DB
+            exitDate: t.created_at,
+            entryPrice: parseFloat(t.entry_price),
+            exitPrice: parseFloat(t.exit_price),
+            quantity: parseFloat(t.quantity),
+            plannedSL: t.sl ? parseFloat(t.sl) : null,
+            actualSL: t.sl ? parseFloat(t.sl) : null,
+            plannedTarget: t.target ? parseFloat(t.target) : null,
+            actualTarget: t.target ? parseFloat(t.target) : null,
+            pnl: parseFloat(t.pnl),
+            pnlPercent: parseFloat(t.pnl_percent),
+            netPnl: parseFloat(t.net_pnl),
+            fees: parseFloat(t.fees),
+            screenshotUrl: t.screenshot_url,
+            notes: notesText,
+            emotionTag: t.emotion_tag as EmotionTag | null,
+            strategyId: t.strategy_id,
+            createdAt: t.created_at,
+            mistakeTags: [], // Need separate query ideally
+            checklistResponses: []
+          };
+        });
+
+        const defaultPrefs = {
+          name: profile?.name || '',
+          email: profile?.email || '',
+          theme: profile?.preferred_theme as 'dark' | 'light' || 'dark',
+          currency: profile?.currency || 'USD',
+          selectedMarkets: currentMarkets.filter((m: any) => m.enabled).map((m: any) => m.type as MarketType),
+          onboardingComplete: !!profile,
+          startingCapital: profile?.starting_capital ? parseFloat(profile.starting_capital) : undefined,
+          currentCapital: profile?.current_capital ? parseFloat(profile.current_capital) : (profile?.starting_capital ? parseFloat(profile.starting_capital) : undefined),
+          riskPerTradePct: profile?.risk_per_trade_pct ? parseFloat(profile.risk_per_trade_pct) : 1.0,
+          maxDailyRiskPct: profile?.max_daily_risk_pct ? parseFloat(profile.max_daily_risk_pct) : 3.0,
+        };
+
+        set({
+          isInitialized: true,
+          preferences: defaultPrefs,
+          capitalHistory: (capitalHistoryData || []).map(c => ({
+            id: c.id,
+            userId: c.user_id,
+            date: c.date,
+            capitalBefore: parseFloat(c.capital_before),
+            netPnl: parseFloat(c.net_pnl),
+            capitalAfter: parseFloat(c.capital_after),
+            createdAt: c.created_at
+          })),
+          capitalAdjustments: (capitalAdjustmentsData || []).map(a => ({
+            id: a.id,
+            userId: a.user_id,
+            type: a.type as AdjustmentType,
+            amount: parseFloat(a.amount),
+            purpose: a.purpose || '',
+            date: a.date,
+            createdAt: a.created_at,
+          })),
+          marketConfigs: currentMarkets.map((m: any) => ({
+            id: m.id,
+            type: m.type as MarketType,
+            enabled: m.enabled,
+            defaultLotConfigs: m.default_lot_config || DEFAULT_LOT_CONFIGS[m.type as MarketType] || [],
+            currency: m.currency || 'INR'
+          })),
+          trades: mappedTrades,
         mistakeTags: (mistakeTags || []).map(t => ({
           id: t.id,
           name: t.name,
@@ -226,7 +299,10 @@ export const useTradingStore = create<TradingJournalState>()(
           createdAt: j.created_at
         }))
       });
-    },
+    } finally {
+      isStoreInitializing = false;
+    }
+  },
 
     // ---- User Preferences ----
     preferences: {
@@ -426,8 +502,13 @@ export const useTradingStore = create<TradingJournalState>()(
           : ((tradeData.entryPrice - tradeData.exitPrice) / tradeData.entryPrice) * 100;
       const netPnl = pnl - (tradeData.fees || 0);
 
-      const { data: insertedTrade } = await supabase.from('trades').insert({
+      const targetMarket = get().marketConfigs.find((m) => m.type === tradeData.marketType);
+      const marketId = targetMarket?.id || null;
+
+      let notesToSave = tradeData.notes || '';
+      const payload: any = {
         user_id: user.id,
+        market_id: marketId,
         symbol: tradeData.symbol,
         direction: tradeData.direction,
         entry_price: tradeData.entryPrice,
@@ -439,10 +520,26 @@ export const useTradingStore = create<TradingJournalState>()(
         pnl_percent: pnlPercent,
         net_pnl: netPnl,
         fees: tradeData.fees,
-        notes: tradeData.notes,
+        notes: notesToSave,
         emotion_tag: tradeData.emotionTag,
         strategy_id: tradeData.strategyId,
-      }).select().single();
+      };
+
+      if (tradeData.optionType) {
+        payload.option_type = tradeData.optionType;
+      }
+
+      let { data: insertedTrade, error } = await supabase.from('trades').insert(payload).select().single();
+
+      // Graceful fallback if option_type column does not exist yet on remote table
+      if (error && (error.message?.includes('option_type') || error.details?.includes('option_type'))) {
+        delete payload.option_type;
+        if (tradeData.optionType) {
+          payload.notes = `[Option: ${tradeData.optionType === 'call' ? 'Call' : 'Put'}] ${notesToSave}`.trim();
+        }
+        const retry = await supabase.from('trades').insert(payload).select().single();
+        insertedTrade = retry.data;
+      }
 
       if (insertedTrade) {
         // optimistic state update
@@ -450,6 +547,8 @@ export const useTradingStore = create<TradingJournalState>()(
           ...tradeData,
           id: insertedTrade.id,
           userId: user.id,
+          marketType: tradeData.marketType,
+          optionType: tradeData.optionType || null,
           pnl,
           pnlPercent,
           netPnl,
@@ -488,6 +587,12 @@ export const useTradingStore = create<TradingJournalState>()(
       const updatedTrade = get().trades.find(t => t.id === id);
       if (updatedTrade) {
         const dbUpdates: any = {};
+        if (updates.marketType !== undefined) {
+          const targetMarket = get().marketConfigs.find((m) => m.type === updates.marketType);
+          if (targetMarket) {
+            dbUpdates.market_id = targetMarket.id;
+          }
+        }
         if (updates.symbol !== undefined) dbUpdates.symbol = updatedTrade.symbol;
         if (updates.direction !== undefined) dbUpdates.direction = updatedTrade.direction;
         if (updates.entryPrice !== undefined) dbUpdates.entry_price = updatedTrade.entryPrice;
@@ -499,13 +604,24 @@ export const useTradingStore = create<TradingJournalState>()(
         if (updates.strategyId !== undefined) dbUpdates.strategy_id = updatedTrade.strategyId;
         if (updates.plannedSL !== undefined) dbUpdates.sl = updatedTrade.plannedSL;
         if (updates.plannedTarget !== undefined) dbUpdates.target = updatedTrade.plannedTarget;
+        if (updates.optionType !== undefined) {
+          dbUpdates.option_type = updatedTrade.optionType;
+        }
         // Always sync computed fields
         dbUpdates.pnl = updatedTrade.pnl;
         dbUpdates.pnl_percent = updatedTrade.pnlPercent;
         dbUpdates.net_pnl = updatedTrade.netPnl;
 
         if (Object.keys(dbUpdates).length > 0) {
-          await supabase.from('trades').update(dbUpdates).eq('id', id);
+          let { error } = await supabase.from('trades').update(dbUpdates).eq('id', id);
+          if (error && (error.message?.includes('option_type') || error.details?.includes('option_type'))) {
+            delete dbUpdates.option_type;
+            if (updates.optionType !== undefined) {
+              const optTag = updatedTrade.optionType ? `[Option: ${updatedTrade.optionType === 'call' ? 'Call' : 'Put'}] ` : '';
+              dbUpdates.notes = `${optTag}${updatedTrade.notes || ''}`.trim();
+            }
+            await supabase.from('trades').update(dbUpdates).eq('id', id);
+          }
         }
 
         // Incremental capital update: adjust by the difference in netPnl
