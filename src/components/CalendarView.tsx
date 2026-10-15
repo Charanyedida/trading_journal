@@ -106,13 +106,13 @@ export function CalendarView() {
               {format(currentDate, 'MMMM yyyy')}
             </h2>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn-icon btn-secondary" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
+              <button className="btn-icon btn-secondary" onClick={() => setCurrentDate(subMonths(currentDate, 1))} aria-label="Previous month">
                 <ChevronLeft size={18} />
               </button>
               <button className="btn-secondary btn-sm" style={{ borderRadius: 'var(--radius-md)', fontWeight: 600 }} onClick={() => setCurrentDate(new Date())}>
                 Today
               </button>
-              <button className="btn-icon btn-secondary" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
+              <button className="btn-icon btn-secondary" onClick={() => setCurrentDate(addMonths(currentDate, 1))} aria-label="Next month">
                 <ChevronRight size={18} />
               </button>
             </div>

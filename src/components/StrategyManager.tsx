@@ -90,7 +90,7 @@ export function StrategyManager() {
               <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg)' }}>
                 {editingId ? 'Edit Strategy' : 'Create New Strategy'}
               </h2>
-              <button className="btn-icon btn-ghost" onClick={resetForm}>
+              <button className="btn-icon btn-ghost" onClick={resetForm} aria-label="Close form">
                 <X size={20} />
               </button>
             </div>
@@ -136,7 +136,7 @@ export function StrategyManager() {
                   {strategy.name}
                 </h3>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  <button className="btn-icon btn-ghost" onClick={() => startEditing(strategy)}>
+                  <button className="btn-icon btn-ghost" onClick={() => startEditing(strategy)} aria-label={`Edit strategy ${strategy.name}`}>
                     <Edit2 size={14} />
                   </button>
                   <button 
@@ -146,6 +146,7 @@ export function StrategyManager() {
                         deleteStrategy(strategy.id);
                       }
                     }}
+                    aria-label={`Delete strategy ${strategy.name}`}
                   >
                     <Trash2 size={14} style={{ color: 'var(--loss)' }} />
                   </button>
