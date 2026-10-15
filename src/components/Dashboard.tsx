@@ -96,10 +96,12 @@ export function Dashboard() {
     const grossLosses = Math.abs(losses.reduce((s, t) => s + t.netPnl, 0));
     const profitFactor = grossLosses > 0 ? grossWins / grossLosses : grossWins > 0 ? Infinity : 0;
 
-    // Best/worst day
+    // Best/worst day and Day P&L map
     const dayMap: Record<string, number> = {};
     filteredTrades.forEach((t) => {
-      const day = t.entryDate.split('T')[0];
+      const dateStr = t.entryDate || t.exitDate;
+      if (!dateStr) return;
+      const day = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr.slice(0, 10);
       dayMap[day] = (dayMap[day] || 0) + t.netPnl;
     });
     let bestDay: { date: string; pnl: number } | null = null;
@@ -109,17 +111,19 @@ export function Dashboard() {
       if (!worstDay || pnl < worstDay.pnl) worstDay = { date, pnl };
     });
 
-    // Current streak
-    const sorted = [...filteredTrades].sort(
-      (a, b) => new Date(b.exitDate).getTime() - new Date(a.exitDate).getTime()
-    );
-    let streakType: 'win' | 'loss' = sorted[0]?.netPnl >= 0 ? 'win' : 'loss';
+    // Current streak (day-wise: based on overall daily net P&L)
+    const sortedDays = Object.keys(dayMap).sort((a, b) => b.localeCompare(a));
+    let streakType: 'win' | 'loss' = 'win';
     let streakCount = 0;
-    for (const t of sorted) {
-      if ((streakType === 'win' && t.netPnl >= 0) || (streakType === 'loss' && t.netPnl < 0)) {
-        streakCount++;
-      } else {
-        break;
+    if (sortedDays.length > 0) {
+      streakType = dayMap[sortedDays[0]] >= 0 ? 'win' : 'loss';
+      for (const day of sortedDays) {
+        const dayPnl = dayMap[day];
+        if ((streakType === 'win' && dayPnl >= 0) || (streakType === 'loss' && dayPnl < 0)) {
+          streakCount++;
+        } else {
+          break;
+        }
       }
     }
 
@@ -471,8 +475,9 @@ export function Dashboard() {
         <StatCard
           icon={<Flame size={20} />}
           label="Current Streak"
-          value={`${stats.currentStreak.count} ${stats.currentStreak.type === 'win' ? 'Wins' : 'Losses'}`}
-          color={stats.currentStreak.type === 'win' ? 'profit' : 'loss'}
+          value={`${stats.currentStreak.count} ${stats.currentStreak.count === 1 ? 'Day' : 'Days'}`}
+          subtitle={stats.currentStreak.count > 0 ? (stats.currentStreak.type === 'win' ? 'Winning streak' : 'Losing streak') : 'No streak'}
+          color={stats.currentStreak.count === 0 ? 'neutral' : stats.currentStreak.type === 'win' ? 'profit' : 'loss'}
         />
         <StatCard
           icon={<PieChart size={20} />}
