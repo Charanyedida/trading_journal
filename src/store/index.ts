@@ -77,6 +77,8 @@ interface TradingJournalState {
 
   // Daily Journal
   journals: DailyJournal[];
+  selectedJournalDate: string;
+  setSelectedJournalDate: (date: string) => void;
   upsertJournal: (date: string, data: { reflectionText: string; moodScore: MoodScore; marketBias: string }) => Promise<void>;
 
   // Filters
@@ -768,6 +770,8 @@ export const useTradingStore = create<TradingJournalState>()(
 
     // ---- Daily Journal ----
     journals: [],
+    selectedJournalDate: new Date().toISOString().split('T')[0],
+    setSelectedJournalDate: (date: string) => set({ selectedJournalDate: date }),
     upsertJournal: async (date, data) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;

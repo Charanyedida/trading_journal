@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { useTradingStore } from '@/store';
@@ -16,15 +16,20 @@ const MOODS: { score: MoodScore; emoji: string; label: string; color: string }[]
 ];
 
 export function DailyJournal() {
-  const { journals, upsertJournal, trades } = useTradingStore();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const { journals, upsertJournal, trades, selectedJournalDate, setSelectedJournalDate, setActiveNav } = useTradingStore();
+  
+  const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
+  const selectedDate = selectedJournalDate || todayStr;
 
   const existingJournal = useMemo(() => {
     return journals.find((j) => j.date === selectedDate) || null;
   }, [journals, selectedDate]);
 
   const dailyTrades = useMemo(() => {
-    return trades.filter((t) => t.entryDate.startsWith(selectedDate));
+    return trades.filter((t) => {
+      const d = t.entryDate || t.exitDate || t.createdAt;
+      return d && d.startsWith(selectedDate);
+    });
   }, [trades, selectedDate]);
 
   const dailyPnl = useMemo(() => {
@@ -36,16 +41,16 @@ export function DailyJournal() {
   const [mood, setMood] = useState<MoodScore>(existingJournal?.moodScore || 3);
   const [saved, setSaved] = useState(false);
 
-  // Sync state when date changes
-  useMemo(() => {
+  // Sync state when selected date or existing journal changes
+  useEffect(() => {
     setReflection(existingJournal?.reflectionText || '');
     setMarketBias(existingJournal?.marketBias || '');
     setMood(existingJournal?.moodScore || 3);
     setSaved(false);
   }, [existingJournal, selectedDate]);
 
-  const handleSave = () => {
-    upsertJournal(selectedDate, {
+  const handleSave = async () => {
+    await upsertJournal(selectedDate, {
       reflectionText: reflection,
       marketBias,
       moodScore: mood,
@@ -53,6 +58,14 @@ export function DailyJournal() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
+
+  const formattedDateTitle = useMemo(() => {
+    try {
+      return format(parseISO(selectedDate), 'MMMM d, yyyy');
+    } catch {
+      return selectedDate;
+    }
+  }, [selectedDate]);
 
   return (
     <motion.div
@@ -69,16 +82,40 @@ export function DailyJournal() {
             Reflect on your trading day to improve tomorrow.
           </p>
         </div>
-        <div style={{ position: 'relative' }}>
-          <Calendar size={16} style={{ position: 'absolute', left: 12, top: 11, color: 'var(--fg-muted)' }} />
-          <input
-            type="date"
-            className="input tabular-nums"
-            style={{ paddingLeft: 36, width: 160 }}
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            max={new Date().toISOString().split('T')[0]}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setActiveNav('calendar')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            title="Back to Calendar"
+          >
+            <Calendar size={15} />
+            <span>Calendar</span>
+          </button>
+          <div style={{ position: 'relative' }}>
+            <Calendar size={16} style={{ position: 'absolute', left: 12, top: 11, color: 'var(--fg-muted)' }} />
+            <input
+              type="date"
+              className="input tabular-nums"
+              style={{ paddingLeft: 36, width: 160 }}
+              value={selectedDate}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setSelectedJournalDate(e.target.value);
+                }
+              }}
+            />
+          </div>
+          {selectedDate !== todayStr && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => setSelectedJournalDate(todayStr)}
+              style={{ fontWeight: 600 }}
+              title="Jump to today"
+            >
+              Today
+            </button>
+          )}
         </div>
       </div>
 
@@ -88,7 +125,7 @@ export function DailyJournal() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <BookOpen size={18} color="var(--accent)" />
-              Entry for {format(parseISO(selectedDate), 'MMMM d, yyyy')}
+              Entry for {formattedDateTitle}
             </h3>
             {saved && (
               <span style={{ fontSize: 12, color: 'var(--profit)', fontWeight: 600 }}>

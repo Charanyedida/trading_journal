@@ -32,7 +32,7 @@ const isHoliday = (date: Date) => {
 };
 
 export function CalendarView() {
-  const { trades, setActiveNav } = useTradingStore();
+  const { trades, journals, setActiveNav, setSelectedJournalDate, selectedJournalDate } = useTradingStore();
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const daysInMonth = useMemo(() => {
@@ -92,7 +92,7 @@ export function CalendarView() {
             Trading Calendar
           </h1>
           <p style={{ color: 'var(--fg-muted)', fontSize: 14 }}>
-            Visualize your performance and consistency day by day.
+            Visualize your performance and consistency day by day. Click any day to open its journal.
           </p>
         </div>
       </div>
@@ -135,34 +135,62 @@ export function CalendarView() {
               const weekend = day.getDay() === 0 || day.getDay() === 6;
               const holiday = isHoliday(day);
               const nonTradingDay = weekend || holiday;
+              const isSelected = selectedJournalDate === dateStr;
+              const hasJournal = journals?.some(
+                (j) => j.date === dateStr && (j.reflectionText?.trim() || j.marketBias?.trim())
+              );
 
               return (
                 <div
                   key={i}
+                  className="calendar-day-tile"
                   style={{
                     aspectRatio: '1',
                     borderRadius: 'var(--radius-md)',
-                    border: `1px solid ${today ? 'var(--accent)' : 'var(--border)'}`,
-                    background: data ? getColorForPnl(data.pnl) : (nonTradingDay ? 'var(--bg-secondary)' : 'var(--surface)'),
+                    border: isSelected
+                      ? '2px solid var(--accent)'
+                      : `1px solid ${today ? 'var(--accent)' : 'var(--border)'}`,
+                    boxShadow: isSelected ? '0 0 0 2px var(--accent-glow)' : undefined,
+                    background: data
+                      ? getColorForPnl(data.pnl)
+                      : nonTradingDay
+                      ? 'var(--bg-secondary)'
+                      : 'var(--surface)',
                     opacity: isCurrentMonth ? 1 : 0.4,
                     padding: 8,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    cursor: data ? 'pointer' : 'default',
-                    transition: 'all 0.2s',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                    position: 'relative',
                   }}
+                  title={`Open journal for ${dateStr}${data ? ` (${data.trades} trades, P&L: ₹${data.pnl.toFixed(0)})` : ''}`}
                   onClick={() => {
-                    if (data) {
-                      // Navigate to journal for this date
-                      setActiveNav('journal');
-                      // Note: passing date state via a URL parameter or global store would be ideal here.
-                    }
+                    setSelectedJournalDate(dateStr);
+                    setActiveNav('journal');
                   }}
                 >
-                  <div style={{ fontSize: 12, fontWeight: 600, color: data ? getTextColorForPnl(data.pnl) : (nonTradingDay ? 'var(--loss)' : 'var(--fg-muted)') }}>
-                    {format(day, 'd')}
-                    {holiday && !data && <span style={{ fontSize: 10, display: 'block', fontWeight: 400, opacity: 0.7 }}>Holiday</span>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: data ? getTextColorForPnl(data.pnl) : (nonTradingDay ? 'var(--loss)' : 'var(--fg-muted)') }}>
+                      {format(day, 'd')}
+                      {holiday && !data && <span style={{ fontSize: 10, display: 'block', fontWeight: 400, opacity: 0.7 }}>Holiday</span>}
+                    </div>
+                    {hasJournal && (
+                      <span
+                        title="Has journal entry"
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          background: 'var(--accent)',
+                          boxShadow: '0 0 6px var(--accent-glow)',
+                          display: 'inline-block',
+                          flexShrink: 0,
+                          marginTop: 2,
+                        }}
+                      />
+                    )}
                   </div>
                   {data && (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
@@ -228,6 +256,15 @@ export function CalendarView() {
       </div>
 
       <style jsx>{`
+        .calendar-day-tile:hover {
+          transform: translateY(-2px);
+          border-color: var(--accent) !important;
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+          z-index: 2;
+        }
+        .calendar-day-tile:active {
+          transform: scale(0.98);
+        }
         @media (max-width: 900px) {
           div[style*="grid-template-columns: 1fr 300px"] {
             display: flex !important;
