@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTradingStore } from '@/store';
-import { Checklist, MarketType, MARKET_LABELS } from '@/types';
+import { MarketType, MARKET_LABELS } from '@/types';
 import { Plus, Trash2, GripVertical, CheckSquare, Save, X } from 'lucide-react';
 
 export function ChecklistManager() {
-  const { checklists, addChecklist, updateChecklist, deleteChecklist, addChecklistItem, removeChecklistItem } = useTradingStore();
+  const { checklists, addChecklist, deleteChecklist, addChecklistItem, removeChecklistItem } = useTradingStore();
   const [activeChecklistId, setActiveChecklistId] = useState<string>(checklists[0]?.id || '');
   
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -23,8 +23,6 @@ export function ChecklistManager() {
     addChecklist(newChecklistName, newChecklistMarket, []);
     setNewChecklistName('');
     setIsAddingNew(false);
-    // Note: We'd ideally want to select the newly created one, but we don't have its ID immediately returned.
-    // In a real scenario, we'd grab the ID or use a slightly different flow.
   };
 
   const handleAddItem = (e: React.FormEvent) => {
@@ -49,7 +47,7 @@ export function ChecklistManager() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 24, alignItems: 'start' }}>
+      <div className="checklist-layout-container">
         
         {/* Sidebar: List of Checklists */}
         <div className="stat-card" style={{ padding: 16 }}>
@@ -74,6 +72,7 @@ export function ChecklistManager() {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '10px 12px',
+                  minHeight: 44,
                   borderRadius: 'var(--radius-md)',
                   background: activeChecklistId === cl.id ? 'var(--accent-glow)' : 'transparent',
                   color: activeChecklistId === cl.id ? 'var(--accent-hover)' : 'var(--fg)',
@@ -83,6 +82,7 @@ export function ChecklistManager() {
                   fontSize: 14,
                   fontWeight: 500,
                   transition: 'all 0.2s',
+                  touchAction: 'manipulation',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -201,13 +201,13 @@ export function ChecklistManager() {
                 </div>
               </div>
 
-              <form onSubmit={handleAddItem} style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+              <form onSubmit={handleAddItem} style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
                 <input
                   className="input"
                   placeholder="Add a new rule (e.g. Is risk reward 1:2?)"
                   value={newItemText}
                   onChange={(e) => setNewItemText(e.target.value)}
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minWidth: 200 }}
                 />
                 <button type="submit" className="btn btn-primary" disabled={!newItemText.trim()}>
                   <Plus size={16} /> Add Rule
@@ -226,10 +226,16 @@ export function ChecklistManager() {
       </div>
 
       <style jsx>{`
+        .checklist-layout-container {
+          display: grid;
+          grid-template-columns: 260px 1fr;
+          gap: 24px;
+          align-items: start;
+        }
         @media (max-width: 768px) {
-          div[style*="grid-template-columns: 260px 1fr"] {
-            display: flex !important;
-            flex-direction: column !important;
+          .checklist-layout-container {
+            display: flex;
+            flex-direction: column;
           }
         }
       `}</style>

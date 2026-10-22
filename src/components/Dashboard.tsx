@@ -51,7 +51,7 @@ function AnimatedValue({ value, prefix = '', suffix = '' }: { value: string | nu
 }
 
 export function Dashboard() {
-  const { trades, mistakeTags, checklists, filters, setFilters, preferences, capitalHistory, capitalAdjustments } = useTradingStore();
+  const { trades, mistakeTags, filters, setFilters, preferences, capitalHistory, capitalAdjustments } = useTradingStore();
 
   const filteredTrades = useMemo(() => {
     let t = [...trades];
@@ -155,27 +155,27 @@ export function Dashboard() {
     };
   }, [filteredTrades]);
 
-  // Equity curve data
+  // Equity curve data - purely calculated via array reduce without outer mutations
   const equityCurve = useMemo(() => {
     const sorted = [...filteredTrades].sort(
       (a, b) => new Date(a.exitDate).getTime() - new Date(b.exitDate).getTime()
     );
-    let cum = 0;
-    return sorted.map((t) => {
-      cum += t.netPnl;
-      return {
+    return sorted.reduce((acc, t) => {
+      const prevCum = acc.length > 0 ? acc[acc.length - 1].pnl : 0;
+      const cum = prevCum + t.netPnl;
+      acc.push({
         date: format(parseISO(t.exitDate), 'MMM dd'),
         pnl: cum,
         dailyPnl: t.netPnl,
-      };
-    });
+      });
+      return acc;
+    }, [] as { date: string; pnl: number; dailyPnl: number }[]);
   }, [filteredTrades]);
 
   // Capital tracking — use the persisted currentCapital from preferences
   const currentCapital = useMemo(() => {
     if (preferences.startingCapital === undefined) return null;
     if (preferences.currentCapital !== undefined) return preferences.currentCapital;
-    // Fallback: if currentCapital not yet persisted, derive from history
     if (capitalHistory.length === 0) return preferences.startingCapital;
     return capitalHistory[capitalHistory.length - 1].capitalAfter;
   }, [preferences.startingCapital, preferences.currentCapital, capitalHistory]);
@@ -183,13 +183,11 @@ export function Dashboard() {
   const capitalStats = useMemo(() => {
     if (preferences.startingCapital === undefined || currentCapital === null) return null;
     
-    // Find today's date from local time
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const todayTrades = filteredTrades.filter(t => t.exitDate.startsWith(todayStr));
     const todayPnl = todayTrades.reduce((s, t) => s + t.netPnl, 0);
     const todayLosses = Math.abs(todayTrades.filter(t => t.netPnl < 0).reduce((s, t) => s + t.netPnl, 0));
     
-    // Find yesterday's capital to compute % change
     let yesterdayCapital = preferences.startingCapital;
     if (capitalHistory.length > 0) {
       const todayEntry = capitalHistory.find(c => c.date === todayStr);
@@ -388,7 +386,6 @@ export function Dashboard() {
                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--fg-muted)' }}>
                  <span>Overall Return:</span>
                  {(() => {
-                   // True trading return = exclude deposits/withdrawals
                    const totalDeposits = capitalAdjustments.filter(a => a.type === 'deposit').reduce((s, a) => s + a.amount, 0);
                    const totalWithdrawals = capitalAdjustments.filter(a => a.type === 'withdrawal').reduce((s, a) => s + a.amount, 0);
                    const tradingReturn = currentCapital - preferences.startingCapital! - totalDeposits + totalWithdrawals;
@@ -449,7 +446,6 @@ export function Dashboard() {
           icon={<TrendingUp size={20} />}
           label="Total P&L"
           value={formatCurrency(stats.totalNetPnl)}
-          change={stats.totalNetPnl}
           color={stats.totalNetPnl >= 0 ? 'profit' : 'loss'}
         />
         <StatCard
@@ -504,7 +500,7 @@ export function Dashboard() {
         <>
           {/* Charts Row */}
           <motion.div variants={itemVariants} className="charts-grid" style={{ marginBottom: 24 }}>
-            {/* Capital Growth Curve (New) */}
+            {/* Capital Growth Curve */}
             {capitalHistory.length > 0 && (
               <div className="stat-card" style={{ padding: 0 }}>
                 <div style={{ padding: '22px 26px 0' }}>
@@ -513,7 +509,7 @@ export function Dashboard() {
                   </h3>
                   <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Total capital over time</p>
                 </div>
-                <div style={{ padding: '16px 8px 8px', height: 300 }}>
+                <div style={{ padding: '16px 8px 8px', height: 280 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={capitalHistory}>
                       <defs>
@@ -547,7 +543,7 @@ export function Dashboard() {
                 </h3>
                 <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Cumulative P&L over time</p>
               </div>
-              <div style={{ padding: '16px 8px 8px', height: 300 }}>
+              <div style={{ padding: '16px 8px 8px', height: 280 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={equityCurve}>
                     <defs>
@@ -581,7 +577,7 @@ export function Dashboard() {
                   </h3>
                   <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>P&L impact by mistake tag</p>
                 </div>
-                <div style={{ padding: '16px 8px 8px', height: 300 }}>
+                <div style={{ padding: '16px 8px 8px', height: 280 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={mistakeAnalysis} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
@@ -589,7 +585,10 @@ export function Dashboard() {
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={100} />
                       <Tooltip
                         contentStyle={chartTooltipStyle}
-                        formatter={(val: any) => [formatCurrency(Number(val) || 0), 'P&L Impact']}
+                        formatter={(val) => [
+                          formatCurrency(Number(val) || 0),
+                          'P&L Impact'
+                        ]}
                       />
                       <Bar dataKey="totalPnl" radius={[0, 6, 6, 0]}>
                         {mistakeAnalysis.map((entry, index) => (
@@ -671,14 +670,12 @@ function StatCard({
   label,
   value,
   subtitle,
-  change,
   color,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   subtitle?: string;
-  change?: number;
   color: 'profit' | 'loss' | 'warning' | 'neutral';
 }) {
   const colorMap = {
@@ -698,7 +695,6 @@ function StatCard({
   return (
     <div className="stat-card">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        {/* Spatial icon orb */}
         <div
           className="icon-orb"
           style={{

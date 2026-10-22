@@ -185,21 +185,21 @@ export function TradeLog() {
 
       <div className="stat-card" style={{ padding: '20px 24px' }}>
         {/* Toolbar */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 20, justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: 12, flex: 1, maxWidth: 500 }}>
-            <div style={{ position: 'relative', flex: 1 }}>
-              <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--fg-muted)' }} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 20, justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 12, flex: 1, flexWrap: 'wrap', minWidth: 280 }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: 180 }}>
+              <Search size={16} style={{ position: 'absolute', left: 12, top: 14, color: 'var(--fg-muted)' }} />
               <input
                 className="input"
-                placeholder="Search symbol, notes, or tags..."
+                placeholder="Search symbol, notes, tags..."
                 style={{ paddingLeft: 36 }}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             {enabledMarkets.length > 1 && (
-              <div style={{ position: 'relative', width: 160 }}>
-                <Filter size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--fg-muted)', zIndex: 1 }} />
+              <div style={{ position: 'relative', width: '100%', maxWidth: 160 }}>
+                <Filter size={14} style={{ position: 'absolute', left: 12, top: 15, color: 'var(--fg-muted)', zIndex: 1 }} />
                 <select
                   className="select"
                   style={{ paddingLeft: 34 }}
@@ -214,13 +214,13 @@ export function TradeLog() {
               </div>
             )}
           </div>
-          <div style={{ fontSize: 13, color: 'var(--fg-muted)', display: 'flex', alignItems: 'center' }}>
+          <div style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
             Showing {filteredAndSortedTrades.length} trades
           </div>
         </div>
 
-        {/* Table */}
-        <div className="table-container" style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+        {/* Desktop Table View */}
+        <div className="table-container trade-log-desktop-table" style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
           <table>
             <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
               <tr>
@@ -373,6 +373,85 @@ export function TradeLog() {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Stacked Card View */}
+        <div className="trade-log-mobile-cards">
+          {filteredAndSortedTrades.length > 0 ? (
+            filteredAndSortedTrades.map((trade) => {
+              const tags = getTagsForTrade(trade.mistakeTags);
+              return (
+                <div key={trade.id} className="stat-card" style={{ marginBottom: 12, padding: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--fg)' }}>{trade.symbol}</span>
+                        <span className="badge badge-neutral" style={{ fontSize: 10 }}>{MARKET_LABELS[trade.marketType]}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>
+                        {format(parseISO(trade.entryDate), 'MMM dd, yyyy · HH:mm')}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="tabular-nums" style={{ fontSize: 18, fontWeight: 800, color: trade.netPnl >= 0 ? 'var(--profit)' : 'var(--loss)' }}>
+                        {trade.netPnl >= 0 ? '+' : ''}{trade.netPnl.toFixed(2)}
+                      </div>
+                      <div className="tabular-nums" style={{ fontSize: 11, color: 'var(--fg-muted)' }}>
+                        {trade.pnlPercent.toFixed(2)}%
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      {trade.direction === 'long' ? (
+                        <span className="badge badge-success" style={{ background: 'var(--profit-bg)', color: 'var(--profit)', border: 'none', padding: '2px 8px' }}>
+                          <ArrowUpRight size={12} /> Long
+                        </span>
+                      ) : (
+                        <span className="badge badge-danger" style={{ background: 'var(--loss-bg)', color: 'var(--loss)', border: 'none', padding: '2px 8px' }}>
+                          <ArrowDownRight size={12} /> Short
+                        </span>
+                      )}
+                      {trade.optionType && (
+                        <span
+                          className="badge"
+                          style={{
+                            background: trade.optionType === 'call' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(236, 72, 153, 0.15)',
+                            color: trade.optionType === 'call' ? '#3b82f6' : '#ec4899',
+                            border: trade.optionType === 'call' ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(236, 72, 153, 0.3)',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                          }}
+                        >
+                          {trade.optionType === 'call' ? 'CE' : 'PE'}
+                        </span>
+                      )}
+                      {tags.map((t) => (
+                        <span key={t.id} style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: `${t.color}15`, color: t.color }}>
+                          {t.name}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn-icon btn-ghost" onClick={() => openEditModal(trade)} title="Edit">
+                        <Pencil size={16} style={{ color: 'var(--accent)' }} />
+                      </button>
+                      <button className="btn-icon btn-ghost" onClick={() => { if (window.confirm('Delete trade?')) deleteTrade(trade.id); }} title="Delete">
+                        <Trash2 size={16} style={{ color: 'var(--loss)' }} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--fg-muted)' }}>
+              No trades found matching your search.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Edit Trade Modal */}
@@ -404,7 +483,7 @@ export function TradeLog() {
                 position: 'fixed',
                 top: 0,
                 right: 0,
-                height: '100vh',
+                height: '100dvh',
                 width: 520,
                 maxWidth: '100vw',
                 background: 'var(--bg)',
@@ -635,6 +714,7 @@ export function TradeLog() {
                         return (
                           <button
                             key={tag}
+                            type="button"
                             className={`chip ${isSelected ? 'selected' : ''}`}
                             style={isSelected ? { borderColor: color, background: `${color}18`, color } : {}}
                             onClick={() => setEditForm({ ...editForm, emotionTag: isSelected ? '' : tag })}
@@ -761,6 +841,20 @@ export function TradeLog() {
           </>
         )}
       </AnimatePresence>
+
+      <style jsx>{`
+        .trade-log-mobile-cards {
+          display: none;
+        }
+        @media (max-width: 768px) {
+          .trade-log-desktop-table {
+            display: none;
+          }
+          .trade-log-mobile-cards {
+            display: block;
+          }
+        }
+      `}</style>
     </motion.div>
   );
 }

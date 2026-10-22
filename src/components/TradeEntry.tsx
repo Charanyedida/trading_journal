@@ -167,7 +167,7 @@ export function TradeEntry() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--fg)', marginBottom: 4 }}>
           Log New Trade
         </h1>
@@ -176,7 +176,7 @@ export function TradeEntry() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24, alignItems: 'start' }}>
+      <div className="trade-entry-container">
         {/* Main Form */}
         <div>
           {/* Market & Direction */}
@@ -401,6 +401,7 @@ export function TradeEntry() {
                   return (
                     <button
                       key={tag}
+                      type="button"
                       className={`chip ${isSelected ? 'selected' : ''}`}
                       style={isSelected ? { borderColor: color, background: `${color}18`, color } : {}}
                       onClick={() => setForm({ ...form, emotionTag: isSelected ? '' : tag })}
@@ -439,6 +440,7 @@ export function TradeEntry() {
                 return (
                   <button
                     key={tag.id}
+                    type="button"
                     className={`chip ${isSelected ? 'selected' : ''}`}
                     style={isSelected ? { borderColor: tag.color, background: `${tag.color}18`, color: tag.color } : {}}
                     onClick={() => {
@@ -592,12 +594,21 @@ export function TradeEntry() {
         </div>
       </div>
 
-      {/* Mobile responsive override */}
       <style jsx>{`
+        .trade-entry-container {
+          display: grid;
+          grid-template-columns: 1fr 360px;
+          gap: 24px;
+          align-items: start;
+        }
         @media (max-width: 900px) {
-          div[style*="grid-template-columns: 1fr 360px"] {
-            display: flex !important;
-            flex-direction: column !important;
+          .trade-entry-container {
+            display: flex;
+            flex-direction: column;
+          }
+          div[style*="position: sticky"] {
+            position: static !important;
+            width: 100%;
           }
         }
       `}</style>

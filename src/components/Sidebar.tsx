@@ -47,34 +47,60 @@ export function Sidebar() {
     router.push('/login');
   };
 
+  const currentNavLabel = NAV_ITEMS.find((item) => item.id === activeNav)?.label || 'Dashboard';
+
   return (
     <>
-      {/* Mobile hamburger button */}
-      <button
-        className="btn-icon btn-ghost"
-        onClick={() => setMobileOpen(true)}
-        style={{
-          position: 'fixed',
-          top: 16,
-          left: 16,
-          zIndex: 50,
-          display: 'none',
-        }}
-        id="mobile-menu-btn"
-        aria-label="Open menu"
-      >
-        <Menu size={22} />
-      </button>
+      {/* Mobile Sticky Top Header Bar */}
+      <div className="mobile-top-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            className="btn-icon btn-ghost"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open navigation menu"
+          >
+            <Menu size={22} />
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--accent-gradient)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <TrendingUp size={16} color="#fff" />
+            </div>
+            <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--fg)' }}>
+              {currentNavLabel}
+            </span>
+          </div>
+        </div>
 
-      {/* Mobile overlay */}
+        <button
+          className="btn-icon btn-ghost"
+          onClick={() => setActiveNav('new-trade')}
+          aria-label="New Trade"
+          title="Log New Trade"
+        >
+          <PlusCircle size={22} style={{ color: 'var(--accent)' }} />
+        </button>
+      </div>
+
+      {/* Mobile Backdrop Overlay */}
       {mobileOpen && (
         <div
           className="overlay"
-          style={{ zIndex: 55 }}
+          style={{ zIndex: 55, backdropFilter: 'blur(10px)' }}
           onClick={() => setMobileOpen(false)}
         />
       )}
 
+      {/* Floating Glass Sidebar Drawer */}
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         {/* Logo */}
         <div className="sidebar-logo">
@@ -87,19 +113,19 @@ export function Sidebar() {
               <div className="sidebar-logo-sub">Trading Journal</div>
             </div>
           </div>
-          {/* Mobile close */}
+
+          {/* Mobile close button */}
           <button
             className="btn-icon btn-ghost"
             onClick={() => setMobileOpen(false)}
-            style={{ display: 'none' }}
-            id="mobile-close-btn"
-            aria-label="Close menu"
+            aria-label="Close navigation menu"
+            style={{ borderRadius: 'var(--radius-md)' }}
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Nav items */}
+        {/* Navigation Items */}
         <nav className="sidebar-nav">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
@@ -114,7 +140,7 @@ export function Sidebar() {
                 }}
               >
                 <Icon size={18} />
-                {item.label}
+                <span>{item.label}</span>
                 {item.id === 'new-trade' && (
                   <span
                     style={{
@@ -136,37 +162,23 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Bottom section: theme toggle and logout */}
+        {/* Footer actions: Theme Toggle & Logout */}
         <div className="sidebar-footer">
-          <button
-            className="sidebar-link"
-            onClick={toggleTheme}
-          >
+          <button className="sidebar-link" onClick={toggleTheme}>
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-            {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+            <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
           </button>
-          
+
           <button
             className="sidebar-link"
             onClick={handleLogout}
             style={{ color: 'var(--loss)' }}
           >
             <LogOut size={18} />
-            Logout
+            <span>Logout</span>
           </button>
         </div>
       </aside>
-
-      <style jsx>{`
-        @media (max-width: 768px) {
-          #mobile-menu-btn {
-            display: flex !important;
-          }
-          #mobile-close-btn {
-            display: flex !important;
-          }
-        }
-      `}</style>
     </>
   );
 }

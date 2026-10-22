@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { useTradingStore } from '@/store';
-import { MoodScore } from '@/types';
+import { MoodScore, DailyJournal as DailyJournalType, Trade } from '@/types';
 import { BookOpen, Calendar, Save, TrendingUp } from 'lucide-react';
 
 const MOODS: { score: MoodScore; emoji: string; label: string; color: string }[] = [
@@ -21,6 +21,37 @@ export function DailyJournal() {
   const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const selectedDate = selectedJournalDate || todayStr;
 
+  return (
+    <DailyJournalForm
+      key={selectedDate}
+      selectedDate={selectedDate}
+      todayStr={todayStr}
+      journals={journals}
+      trades={trades}
+      upsertJournal={upsertJournal}
+      setSelectedJournalDate={setSelectedJournalDate}
+      setActiveNav={setActiveNav}
+    />
+  );
+}
+
+function DailyJournalForm({
+  selectedDate,
+  todayStr,
+  journals,
+  trades,
+  upsertJournal,
+  setSelectedJournalDate,
+  setActiveNav,
+}: {
+  selectedDate: string;
+  todayStr: string;
+  journals: DailyJournalType[];
+  trades: Trade[];
+  upsertJournal: (date: string, data: { reflectionText: string; moodScore: MoodScore; marketBias: string }) => Promise<void>;
+  setSelectedJournalDate: (date: string) => void;
+  setActiveNav: (nav: string) => void;
+}) {
   const existingJournal = useMemo(() => {
     return journals.find((j) => j.date === selectedDate) || null;
   }, [journals, selectedDate]);
@@ -40,14 +71,6 @@ export function DailyJournal() {
   const [marketBias, setMarketBias] = useState(existingJournal?.marketBias || '');
   const [mood, setMood] = useState<MoodScore>(existingJournal?.moodScore || 3);
   const [saved, setSaved] = useState(false);
-
-  // Sync state when selected date or existing journal changes
-  useEffect(() => {
-    setReflection(existingJournal?.reflectionText || '');
-    setMarketBias(existingJournal?.marketBias || '');
-    setMood(existingJournal?.moodScore || 3);
-    setSaved(false);
-  }, [existingJournal, selectedDate]);
 
   const handleSave = async () => {
     await upsertJournal(selectedDate, {
@@ -93,7 +116,7 @@ export function DailyJournal() {
             <span>Calendar</span>
           </button>
           <div style={{ position: 'relative' }}>
-            <Calendar size={16} style={{ position: 'absolute', left: 12, top: 11, color: 'var(--fg-muted)' }} />
+            <Calendar size={16} style={{ position: 'absolute', left: 12, top: 14, color: 'var(--fg-muted)' }} />
             <input
               type="date"
               className="input tabular-nums"
@@ -119,7 +142,7 @@ export function DailyJournal() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, alignItems: 'start' }}>
+      <div className="journal-layout-container">
         {/* Editor */}
         <div className="stat-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -136,10 +159,11 @@ export function DailyJournal() {
 
           <div style={{ marginBottom: 24 }}>
             <label className="input-label">How are you feeling today?</label>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               {MOODS.map((m) => (
                 <button
                   key={m.score}
+                  type="button"
                   onClick={() => setMood(m.score)}
                   style={{
                     display: 'flex',
@@ -147,13 +171,15 @@ export function DailyJournal() {
                     alignItems: 'center',
                     gap: 6,
                     padding: '12px 16px',
+                    minHeight: 64,
                     borderRadius: 'var(--radius-lg)',
                     border: `2px solid ${mood === m.score ? m.color : 'var(--border)'}`,
                     background: mood === m.score ? `${m.color}15` : 'var(--surface)',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
                     flex: 1,
-                    minWidth: 80,
+                    minWidth: 70,
+                    touchAction: 'manipulation',
                   }}
                 >
                   <span style={{ fontSize: 24 }}>{m.emoji}</span>
@@ -241,10 +267,20 @@ export function DailyJournal() {
       </div>
       
       <style jsx>{`
+        .journal-layout-container {
+          display: grid;
+          grid-template-columns: 1fr 320px;
+          gap: 24px;
+          align-items: start;
+        }
         @media (max-width: 900px) {
-          div[style*="grid-template-columns: 1fr 320px"] {
-            display: flex !important;
-            flex-direction: column !important;
+          .journal-layout-container {
+            display: flex;
+            flex-direction: column;
+          }
+          div[style*="position: sticky"] {
+            position: static !important;
+            width: 100%;
           }
         }
       `}</style>
