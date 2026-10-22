@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTradingStore } from '@/store';
+import { Strategy } from '@/types';
 import { Target, Plus, Trash2, Edit2, Save, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
@@ -33,7 +34,7 @@ export function StrategyManager() {
     resetForm();
   };
 
-  const startEditing = (strategy: any) => {
+  const startEditing = (strategy: Strategy) => {
     setName(strategy.name);
     setDescription(strategy.description);
     setEditingId(strategy.id);
@@ -61,7 +62,7 @@ export function StrategyManager() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--fg)', marginBottom: 4 }}>
             Trading Strategies
@@ -126,7 +127,7 @@ export function StrategyManager() {
         )}
       </AnimatePresence>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
         {strategyStats.length > 0 ? (
           strategyStats.map((strategy) => (
             <motion.div key={strategy.id} layout className="stat-card" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -156,7 +157,7 @@ export function StrategyManager() {
                 {strategy.description || <span style={{ fontStyle: 'italic', opacity: 0.5 }}>No description provided.</span>}
               </p>
 
-              <div style={{ background: 'var(--bg-secondary)', padding: '12px 16px', borderRadius: 'var(--radius-md)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div style={{ background: 'var(--bg-secondary)', padding: '12px 16px', borderRadius: 'var(--radius-md)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>Trades</div>
                   <div className="tabular-nums" style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>{strategy.tradeCount}</div>

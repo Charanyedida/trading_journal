@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, ReactNode } from 'react';
 import { useTradingStore } from '@/store';
 
 type Theme = 'dark' | 'light';
@@ -21,29 +21,16 @@ export function useTheme() {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { preferences, setPreferences } = useTradingStore();
-  const [theme, setTheme] = useState<Theme>('dark');
-  const [mounted, setMounted] = useState(false);
+  const theme: Theme = preferences.theme || 'dark';
 
   useEffect(() => {
-    setMounted(true);
-    setTheme(preferences.theme);
-  }, [preferences.theme]);
-
-  useEffect(() => {
-    if (mounted) {
-      document.documentElement.setAttribute('data-theme', theme);
-    }
-  }, [theme, mounted]);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
     setPreferences({ theme: next });
   };
-
-  if (!mounted) {
-    return <div style={{ visibility: 'hidden' }}>{children}</div>;
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

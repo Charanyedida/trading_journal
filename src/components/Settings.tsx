@@ -4,9 +4,9 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useTradingStore } from '@/store';
 import { createClient } from '@/utils/supabase/client';
-import { Settings as SettingsIcon, User, Tag, Download, Sun, Moon, Check, X, AlertTriangle, AlertCircle, Wallet, ArrowDownLeft, ArrowUpRight, Trash2, Plus } from 'lucide-react';
+import { User, Tag, Download, Sun, Moon, Check, X, AlertTriangle, AlertCircle, Wallet, ArrowDownLeft, ArrowUpRight, Trash2, Plus } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
-import { MARKET_LABELS, MarketType, MistakeTag, AdjustmentType } from '@/types';
+import { MARKET_LABELS, AdjustmentType } from '@/types';
 
 export function Settings() {
   const { preferences, setPreferences, mistakeTags, addMistakeTag, deleteMistakeTag, toggleMarket, marketConfigs, trades, capitalAdjustments, addCapitalAdjustment, deleteCapitalAdjustment, recalculateCapitalHistory } = useTradingStore();
@@ -36,7 +36,6 @@ export function Settings() {
 
   const handleSaveCapital = () => {
     const val = startingCapital ? parseFloat(startingCapital) : undefined;
-    // Set both startingCapital and currentCapital together
     setPreferences({
       startingCapital: val,
       currentCapital: val,
@@ -160,7 +159,7 @@ export function Settings() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
         
         {/* Profile & Display */}
         <div className="stat-card">
@@ -253,7 +252,7 @@ export function Settings() {
             )}
             {capitalIsLocked && !isEditingCapital && (
               <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 6, lineHeight: 1.4 }}>
-                Starting capital is locked because you have trades. Use "Reset" to change it (will trigger recalculation).
+                Starting capital is locked because you have trades. Use &quot;Reset&quot; to change it (will trigger recalculation).
               </p>
             )}
           </div>
@@ -349,8 +348,8 @@ export function Settings() {
               </button>
             </div>
 
-            <div style={{ display: 'flex', gap: 12 }}>
-              <div style={{ flex: 1 }}>
+            <div className="form-grid">
+              <div>
                 <label className="input-label">Amount</label>
                 <input
                   className="input tabular-nums"
@@ -361,7 +360,7 @@ export function Settings() {
                   onChange={(e) => setAdjAmount(e.target.value)}
                 />
               </div>
-              <div style={{ flex: 1 }}>
+              <div>
                 <label className="input-label">Date</label>
                 <input
                   className="input"
@@ -521,7 +520,7 @@ export function Settings() {
           </h2>
           
           <p style={{ fontSize: 14, color: 'var(--fg-secondary)', marginBottom: 20, lineHeight: 1.5 }}>
-            All your trading data is currently stored locally in your browser. You can export it as a CSV file to analyze in Excel or Google Sheets.
+            All your trading data is stored securely. You can export your full trade log as a CSV file for backup or external analysis.
           </p>
 
           <button className="btn btn-primary" onClick={handleExportCSV} style={{ width: '100%', marginBottom: 32 }}>

@@ -5,8 +5,7 @@ import { motion } from 'framer-motion';
 import { useTradingStore } from '@/store';
 import { BarChart3, Clock, CalendarDays, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, Sector
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
 import { parseISO, getDay, getHours } from 'date-fns';
 
@@ -29,7 +28,7 @@ export function Analytics() {
     return DAYS.map((day, i) => ({
       name: day,
       ...map[i]
-    })).filter(d => d.count > 0 || d.name === 'Mon' || d.name === 'Fri'); // keep some days for visual structure
+    })).filter(d => d.count > 0 || d.name === 'Mon' || d.name === 'Fri');
   }, [trades]);
 
   // Hour of Day Performance
@@ -97,7 +96,7 @@ export function Analytics() {
         <div style={{ display: 'grid', gap: 24 }}>
           
           {/* Top row: Long vs Short & General Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
             
             <div className="stat-card">
               <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -148,7 +147,7 @@ export function Analytics() {
           </div>
 
           {/* Charts Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
             
             {/* Day of week */}
             <div className="stat-card" style={{ padding: '20px 24px' }}>
@@ -166,7 +165,7 @@ export function Analytics() {
                     <YAxis tick={{ fontSize: 12 }} tickFormatter={(val) => val > 1000 || val < -1000 ? `${(val/1000).toFixed(0)}k` : val} />
                     <Tooltip 
                       contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--fg)' }}
-                      formatter={(val: any) => [formatCurrency(Number(val) || 0), 'Net P&L']}
+                      formatter={(val) => [formatCurrency(Number(val) || 0), 'Net P&L']}
                       labelStyle={{ color: 'var(--fg-muted)' }}
                     />
                     <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
@@ -195,7 +194,7 @@ export function Analytics() {
                     <YAxis tick={{ fontSize: 12 }} tickFormatter={(val) => val > 1000 || val < -1000 ? `${(val/1000).toFixed(0)}k` : val} />
                     <Tooltip 
                       contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--fg)' }}
-                      formatter={(val: any) => [formatCurrency(Number(val) || 0), 'Net P&L']}
+                      formatter={(val) => [formatCurrency(Number(val) || 0), 'Net P&L']}
                       labelStyle={{ color: 'var(--fg-muted)' }}
                     />
                     <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>

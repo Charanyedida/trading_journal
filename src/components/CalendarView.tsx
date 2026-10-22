@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   format, 
-  parseISO, 
   startOfMonth, 
   endOfMonth, 
   eachDayOfInterval, 
@@ -57,7 +56,6 @@ export function CalendarView() {
     const monthTrades = trades.filter((t) => t.entryDate.startsWith(currentMonthStr));
     
     const wins = monthTrades.filter((t) => t.netPnl > 0);
-    const losses = monthTrades.filter((t) => t.netPnl < 0);
     
     return {
       netPnl: monthTrades.reduce((sum, t) => sum + t.netPnl, 0),
@@ -97,11 +95,11 @@ export function CalendarView() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24, alignItems: 'start' }}>
+      <div className="calendar-layout-container">
         {/* Calendar Grid */}
-        <div className="stat-card" style={{ padding: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--fg)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="stat-card" style={{ padding: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <CalendarIcon size={20} color="var(--accent)" />
               {format(currentDate, 'MMMM yyyy')}
             </h2>
@@ -118,15 +116,15 @@ export function CalendarView() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8, marginBottom: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 8 }}>
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-              <div key={day} style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)', padding: '8px 0' }}>
+              <div key={day} style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', padding: '4px 0' }}>
                 {day}
               </div>
             ))}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
             {daysInMonth.map((day, i) => {
               const dateStr = format(day, 'yyyy-MM-dd');
               const data = pnlByDay[dateStr];
@@ -157,13 +155,14 @@ export function CalendarView() {
                       ? 'var(--bg-secondary)'
                       : 'var(--surface)',
                     opacity: isCurrentMonth ? 1 : 0.4,
-                    padding: 8,
+                    padding: 6,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
                     transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                     position: 'relative',
+                    touchAction: 'manipulation',
                   }}
                   title={`Open journal for ${dateStr}${data ? ` (${data.trades} trades, P&L: ₹${data.pnl.toFixed(0)})` : ''}`}
                   onClick={() => {
@@ -174,7 +173,6 @@ export function CalendarView() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: data ? getTextColorForPnl(data.pnl) : (nonTradingDay ? 'var(--loss)' : 'var(--fg-muted)') }}>
                       {format(day, 'd')}
-                      {holiday && !data && <span style={{ fontSize: 10, display: 'block', fontWeight: 400, opacity: 0.7 }}>Holiday</span>}
                     </div>
                     {hasJournal && (
                       <span
@@ -187,18 +185,17 @@ export function CalendarView() {
                           boxShadow: '0 0 6px var(--accent-glow)',
                           display: 'inline-block',
                           flexShrink: 0,
-                          marginTop: 2,
                         }}
                       />
                     )}
                   </div>
                   {data && (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                      <div className="tabular-nums" style={{ fontSize: 12, fontWeight: 800, color: getTextColorForPnl(data.pnl) }}>
+                      <div className="tabular-nums" style={{ fontSize: 11, fontWeight: 800, color: getTextColorForPnl(data.pnl) }}>
                         {data.pnl > 0 ? '+' : ''}{data.pnl >= 1000 || data.pnl <= -1000 ? (data.pnl / 1000).toFixed(1) + 'k' : data.pnl.toFixed(0)}
                       </div>
-                      <div style={{ fontSize: 9, color: 'var(--fg-muted)' }}>
-                        {data.trades} trades
+                      <div style={{ fontSize: 9, color: 'var(--fg-muted)' }} className="calendar-trades-count">
+                        {data.trades}t
                       </div>
                     </div>
                   )}
@@ -256,6 +253,12 @@ export function CalendarView() {
       </div>
 
       <style jsx>{`
+        .calendar-layout-container {
+          display: grid;
+          grid-template-columns: 1fr 300px;
+          gap: 24px;
+          align-items: start;
+        }
         .calendar-day-tile:hover {
           transform: translateY(-2px);
           border-color: var(--accent) !important;
@@ -266,9 +269,14 @@ export function CalendarView() {
           transform: scale(0.98);
         }
         @media (max-width: 900px) {
-          div[style*="grid-template-columns: 1fr 300px"] {
-            display: flex !important;
-            flex-direction: column !important;
+          .calendar-layout-container {
+            display: flex;
+            flex-direction: column;
+          }
+        }
+        @media (max-width: 480px) {
+          .calendar-trades-count {
+            display: none;
           }
         }
       `}</style>

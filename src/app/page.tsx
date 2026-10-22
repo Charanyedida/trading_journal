@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react';
 import { useTradingStore } from '@/store';
-import { ThemeProvider } from '@/components/ThemeProvider';
 import { Sidebar } from '@/components/Sidebar';
 import { Onboarding } from '@/components/Onboarding';
 import { Dashboard } from '@/components/Dashboard';
